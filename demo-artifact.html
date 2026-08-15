@@ -214,7 +214,7 @@ const MOODS = ['😊','🥰','😴','😢','😤','🤒'];
 const KEY = 'uri-ilgi-demo';
 const state = { name: localStorage.getItem(KEY + ':name') || '', mood: '', photos: [], entries: [] };
 
-// ---------- 저장 (데모: localStorage) ----------
+// ---------- storage (demo: localStorage) ----------
 function localDate(offsetDays = 0) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -238,7 +238,7 @@ function persist() {
   catch { toast('Storage is full — try fewer photos'); return false; }
 }
 
-// ---------- 설정 ----------
+// ---------- setup ----------
 $('btnEnter').onclick = () => {
   const name = $('inName').value.trim();
   if (!name) { toast('Please enter your name'); return; }
@@ -247,7 +247,7 @@ $('btnEnter').onclick = () => {
   enterMain();
 };
 
-// ---------- 작성 ----------
+// ---------- compose ----------
 $('moods').innerHTML = MOODS.map(m => `<button data-m="${m}">${m}</button>`).join('');
 $('moods').onclick = (e) => {
   const b = e.target.closest('button'); if (!b) return;
@@ -273,7 +273,7 @@ function compress(file) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 800; // 데모는 localStorage 용량 한계 때문에 서버 버전보다 작게 압축
+      const MAX = 800; // demo compresses smaller than the server version due to localStorage quota
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const c = document.createElement('canvas');
       c.width = Math.round(img.width * scale);
@@ -303,7 +303,7 @@ $('btnSave').onclick = () => {
   render();
 };
 
-// ---------- 타임라인 ----------
+// ---------- timeline ----------
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const WDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmtDay = (d) => {

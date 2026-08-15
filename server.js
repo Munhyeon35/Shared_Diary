@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 우리 일기 (couple-diary) — 의존성 0개 Node.js 서버 PoC
-// 실행:  COUPLE_CODE=우리만아는코드 node server.js
-// 데이터: ./data/entries.json (글), ./data/photos/ (사진 파일)
+// Our Diary (couple-diary) — zero-dependency Node.js server PoC
+// Run:   COUPLE_CODE=yoursecretcode node server.js
+// Data:  ./data/entries.json (entries), ./data/photos/ (photo files)
 
 const http = require('http');
 const fs = require('fs');
@@ -14,7 +14,7 @@ const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const PHOTO_DIR = path.join(DATA_DIR, 'photos');
 const ENTRIES_FILE = path.join(DATA_DIR, 'entries.json');
-const MAX_BODY = 30 * 1024 * 1024; // 사진 여러 장 포함 요청 상한 30MB
+const MAX_BODY = 30 * 1024 * 1024; // 30MB request cap, enough for several photos
 
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 if (!fs.existsSync(ENTRIES_FILE)) fs.writeFileSync(ENTRIES_FILE, '[]');
@@ -25,7 +25,7 @@ function loadEntries() {
 function saveEntries(entries) {
   const tmp = ENTRIES_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(entries, null, 1));
-  fs.renameSync(tmp, ENTRIES_FILE); // 중간에 죽어도 파일이 깨지지 않도록 원자적 교체
+  fs.renameSync(tmp, ENTRIES_FILE); // atomic swap so a crash mid-write can't corrupt the file
 }
 
 function json(res, status, obj) {
@@ -59,7 +59,7 @@ function readBody(req) {
   });
 }
 
-// data URL(base64 JPEG/PNG/WebP)을 파일로 저장하고 파일명을 돌려준다
+// Save a data URL (base64 JPEG/PNG/WebP) as a file and return its filename
 function savePhoto(dataUrl, entryId, index) {
   const m = /^data:image\/(jpeg|png|webp);base64,(.+)$/s.exec(dataUrl);
   if (!m) return null;
@@ -132,7 +132,7 @@ const server = http.createServer(async (req, res) => {
         id, author, date, text, photos,
         mood: String(body.mood || '').slice(0, 8),
         createdAt: new Date().toISOString(),
-        tz: String(body.tz || '').slice(0, 50), // 작성자 시간대 (상대방 화면에 "현지 시간" 표시용)
+        tz: String(body.tz || '').slice(0, 50), // author's time zone (to show "their time" on the partner's screen)
       };
       const entries = loadEntries();
       entries.push(entry);
@@ -153,10 +153,10 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
-    // ---- 정적 파일 ----
+    // ---- static files ----
     if (p.startsWith('/photos/')) {
-      const name = path.basename(p); // 경로 탈출 방지
-      // 사진도 커플 코드 없이는 안 보이게: 쿼리 파라미터로 코드 확인
+      const name = path.basename(p); // prevent path traversal
+      // Photos are also gated behind the couple code, checked via query parameter
       if (url.searchParams.get('code') !== COUPLE_CODE) return json(res, 401, { error: 'unauthorized' });
       return serveFile(res, path.join(PHOTO_DIR, name));
     }
