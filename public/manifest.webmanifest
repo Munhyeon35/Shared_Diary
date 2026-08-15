@@ -1,6 +1,6 @@
 {
-  "name": "우리 일기",
-  "short_name": "우리 일기",
+  "name": "Our Diary",
+  "short_name": "Our Diary",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faf7f2",

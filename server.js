@@ -171,5 +171,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`우리 일기 서버 시작: http://localhost:${PORT} (커플 코드: ${COUPLE_CODE})`);
+  console.log(`Our Diary server running: http://localhost:${PORT} (couple code: ${COUPLE_CODE})`);
 });

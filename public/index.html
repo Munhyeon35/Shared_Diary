@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#faf7f2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="우리 일기">
+<meta name="apple-mobile-web-app-title" content="Our Diary">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
-<title>우리 일기</title>
+<title>Our Diary</title>
 <style>
   :root {
     --bg: #faf7f2;
@@ -28,7 +28,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     background: var(--bg); color: var(--ink);
     min-height: 100dvh;
     padding-bottom: env(safe-area-inset-bottom);
@@ -163,21 +163,21 @@
 <body>
 <div id="app">
   <header>
-    <h1>우리 일기 <span class="heart">♥</span></h1>
+    <h1>Our Diary <span class="heart">♥</span></h1>
     <span id="daysBadge"></span>
   </header>
 
   <!-- 첫 실행 설정 -->
   <div id="setup" class="setup hidden">
     <div class="big">📖</div>
-    <h2>우리 일기</h2>
-    <p>멀리 있어도 매일의 하루를 나누는 곳.<br>둘만 아는 커플 코드로 들어와요.</p>
-    <label>커플 코드</label>
-    <input id="inCode" type="password" placeholder="둘만 아는 코드" autocomplete="off">
-    <label>내 이름 (일기에 표시돼요)</label>
-    <input id="inName" type="text" maxlength="10" placeholder="예: 문현">
+    <h2>Our Diary</h2>
+    <p>A place to share each day, even far apart.<br>Enter with the code only you two know.</p>
+    <label>Couple code</label>
+    <input id="inCode" type="password" placeholder="Your secret code" autocomplete="off">
+    <label>My name (shown on entries)</label>
+    <input id="inName" type="text" maxlength="20" placeholder="e.g. Moonhyeon">
     <div class="err" id="setupErr"></div>
-    <button class="primary" id="btnEnter">일기장 열기</button>
+    <button class="primary" id="btnEnter">Open our diary</button>
   </div>
 
   <!-- 메인 -->
@@ -187,13 +187,13 @@
         <input type="date" id="inDate">
         <div class="moods" id="moods"></div>
       </div>
-      <textarea id="inText" placeholder="오늘 하루는 어땠어요?"></textarea>
+      <textarea id="inText" placeholder="How was your day?"></textarea>
       <div class="thumbs" id="thumbs"></div>
       <div class="actions">
-        <label class="btn-photo">📷 사진
+        <label class="btn-photo">📷 Photos
           <input type="file" id="inPhoto" accept="image/*" multiple style="display:none">
         </label>
-        <button class="btn-save" id="btnSave">남기기</button>
+        <button class="btn-save" id="btnSave">Save</button>
       </div>
     </div>
     <div id="timeline"></div>
@@ -234,15 +234,15 @@ function logout() {
 $('btnEnter').onclick = async () => {
   const code = $('inCode').value.trim();
   const name = $('inName').value.trim();
-  if (!code || !name) { $('setupErr').textContent = '코드와 이름을 모두 입력해 주세요.'; return; }
+  if (!code || !name) { $('setupErr').textContent = 'Please enter both the code and your name.'; return; }
   $('btnEnter').disabled = true;
   try {
     const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
-    if (!res.ok) { $('setupErr').textContent = '커플 코드가 맞지 않아요.'; return; }
+    if (!res.ok) { $('setupErr').textContent = "That code doesn't match."; return; }
     state.code = code; state.name = name;
     localStorage.setItem('code', code); localStorage.setItem('name', name);
     enterMain();
-  } catch { $('setupErr').textContent = '서버에 연결할 수 없어요.'; }
+  } catch { $('setupErr').textContent = "Can't reach the server."; }
   finally { $('btnEnter').disabled = false; }
 };
 
@@ -290,7 +290,7 @@ function compress(file) {
 
 $('btnSave').onclick = async () => {
   const text = $('inText').value;
-  if (!text.trim() && !state.photos.length) { toast('내용이나 사진을 넣어 주세요'); return; }
+  if (!text.trim() && !state.photos.length) { toast('Add some text or a photo'); return; }
   $('btnSave').disabled = true;
   try {
     await api('/api/entries', {
@@ -304,31 +304,31 @@ $('btnSave').onclick = async () => {
     $('inText').value = ''; state.photos = []; state.mood = '';
     renderThumbs();
     [...$('moods').children].forEach(x => x.classList.remove('sel'));
-    toast('오늘의 일기를 남겼어요 ♥');
+    toast("Saved today's entry ♥");
     await refresh();
-  } catch (e) { toast('저장 실패: ' + e.message); }
+  } catch (e) { toast('Save failed: ' + e.message); }
   finally { $('btnSave').disabled = false; }
 };
 
 // ---------- 타임라인 ----------
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmtDay = (d) => {
   const [y, m, dd] = d.split('-').map(Number);
-  const w = '일월화수목금토'[new Date(y, m - 1, dd).getDay()];
-  const today = localDate();
-  const label = `${m}월 ${dd}일 (${w})`;
-  return d === today ? `오늘 · ${label}` : label;
+  const label = `${MONTHS[m - 1]} ${dd} (${WDAYS[new Date(y, m - 1, dd).getDay()]})`;
+  return d === localDate() ? `Today · ${label}` : label;
 };
 function localDate(offsetDays = 0) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function fmtTime(iso, tz) {
-  const opt = { hour: '2-digit', minute: '2-digit', hour12: false };
-  let s = new Date(iso).toLocaleTimeString('ko-KR', opt);
+  const opt = { hour: 'numeric', minute: '2-digit', hour12: true };
+  let s = new Date(iso).toLocaleTimeString('en-US', opt);
   // 작성자가 다른 시간대에 있으면 그쪽 현지 시간도 같이 표시
   const myTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (tz && tz !== myTz) {
-    try { s += ` (현지 ${new Date(iso).toLocaleTimeString('ko-KR', { ...opt, timeZone: tz })})`; } catch {}
+    try { s += ` (their time ${new Date(iso).toLocaleTimeString('en-US', { ...opt, timeZone: tz })})`; } catch {}
   }
   return s;
 }
@@ -339,7 +339,7 @@ function renderTimeline() {
   for (const e of state.entries) (groups[e.date] ||= []).push(e);
   const days = Object.keys(groups).sort().reverse();
   if (!days.length) {
-    $('timeline').innerHTML = `<div class="empty">아직 일기가 없어요.<br>오늘의 첫 페이지를 남겨 보세요 ✏️</div>`;
+    $('timeline').innerHTML = `<div class="empty">No entries yet.<br>Write today's first page ✏️</div>`;
     return;
   }
   $('timeline').innerHTML = days.map((d) => `
@@ -354,7 +354,7 @@ function renderTimeline() {
           </div>
           <div class="text">${esc(e.text)}</div>
           ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${photoUrl(p)}" data-full="${photoUrl(p)}">`).join('')}</div>` : ''}
-          ${e.author === state.name ? `<button class="del" data-id="${e.id}">삭제</button>` : ''}
+          ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
         </article>`).join('')}
     </section>`).join('');
 }
@@ -362,9 +362,9 @@ $('timeline').onclick = async (e) => {
   const img = e.target.closest('img[data-full]');
   if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
   const del = e.target.closest('.del');
-  if (del && confirm('이 일기를 삭제할까요?')) {
+  if (del && confirm('Delete this entry?')) {
     try { await api('/api/entries/' + del.dataset.id, { method: 'DELETE' }); await refresh(); }
-    catch (err) { toast('삭제 실패: ' + err.message); }
+    catch (err) { toast('Delete failed: ' + err.message); }
   }
 };
 $('viewer').onclick = () => $('viewer').classList.remove('on');
@@ -378,7 +378,7 @@ async function refresh() {
   if (dates.length) {
     const first = dates.sort()[0].split('-').map(Number);
     const days = Math.floor((Date.now() - new Date(first[0], first[1] - 1, first[2])) / 86400000) + 1;
-    $('daysBadge').textContent = `함께 쓴 지 ${days}일째`;
+    $('daysBadge').textContent = `Day ${days} of our diary`;
   }
 }
 function toast(msg) {

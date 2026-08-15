@@ -1,4 +1,4 @@
-<title>우리 일기</title>
+<title>Our Diary</title>
 <style>
   :root {
     --bg: #f7f4ee;
@@ -38,7 +38,7 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     background: var(--bg); color: var(--ink); min-height: 100dvh;
   }
   #app { max-width: 560px; margin: 0 auto; padding: 0 16px 96px; }
@@ -170,20 +170,20 @@
 
 <div id="app">
   <header>
-    <h1>우리 일기 <span class="heart">♥</span></h1>
+    <h1>Our Diary <span class="heart">♥</span></h1>
     <span id="daysBadge"></span>
   </header>
 
-  <div class="demo-note"><b>체험판</b> — 여기 쓰는 일기는 이 기기 브라우저에만 저장돼요.
-  실제로 둘이 공유하려면 서버 버전(couple-diary)을 배포해서 쓰는 거예요.</div>
+  <div class="demo-note"><b>Demo</b> — entries here are saved only in this device's browser.
+  To actually share with each other, deploy the server version (couple-diary).</div>
 
   <div id="setup" class="setup hidden">
     <div class="big">📖</div>
-    <h2>우리 일기</h2>
-    <p>멀리 있어도 매일의 하루를 나누는 곳.</p>
-    <label>내 이름 (일기에 표시돼요)</label>
-    <input id="inName" type="text" maxlength="10" placeholder="예: 문현">
-    <button class="primary" id="btnEnter">일기장 열기</button>
+    <h2>Our Diary</h2>
+    <p>A place to share each day, even far apart.</p>
+    <label>My name (shown on entries)</label>
+    <input id="inName" type="text" maxlength="20" placeholder="e.g. Moonhyeon">
+    <button class="primary" id="btnEnter">Open our diary</button>
   </div>
 
   <div id="main" class="hidden">
@@ -192,13 +192,13 @@
         <input type="date" id="inDate">
         <div class="moods" id="moods"></div>
       </div>
-      <textarea id="inText" placeholder="오늘 하루는 어땠어요?"></textarea>
+      <textarea id="inText" placeholder="How was your day?"></textarea>
       <div class="thumbs" id="thumbs"></div>
       <div class="actions">
-        <label class="btn-photo">📷 사진
+        <label class="btn-photo">📷 Photos
           <input type="file" id="inPhoto" accept="image/*" multiple style="display:none">
         </label>
-        <button class="btn-save" id="btnSave">남기기</button>
+        <button class="btn-save" id="btnSave">Save</button>
       </div>
     </div>
     <div id="timeline"></div>
@@ -221,11 +221,11 @@ function localDate(offsetDays = 0) {
 }
 function seed() {
   return [
-    { id: 's1', author: '상대방', date: localDate(-1), mood: '🥰',
-      text: '(예시) 오늘 퇴근하고 마트 다녀왔어. 네가 좋아하는 라면 보이길래 사진 찍었지. 시차 때문에 목소리 못 들은 날은 여기에 이렇게 남겨두면 되겠다!',
+    { id: 's1', author: 'Partner', date: localDate(-1), mood: '🥰',
+      text: "(sample) Stopped by the grocery store after work and saw the ramen you love — took a photo of it. On days the time zones steal our call, we can just leave our day here like this!",
       photos: [], createdAt: new Date(Date.now() - 86400000).toISOString(), tz: 'America/Los_Angeles' },
-    { id: 's2', author: '나', date: localDate(-1), mood: '😊',
-      text: '(예시) 나는 오늘 회사에서 실험 하나 끝냈어. 전화 시간 전에 서로 하루를 미리 읽고 시작하니까 얘기가 더 깊어질 것 같아.',
+    { id: 's2', author: 'Me', date: localDate(-1), mood: '😊',
+      text: "(sample) I wrapped up an experiment at work today. Reading each other's day before our call starts makes the talk go so much deeper.",
       photos: [], createdAt: new Date(Date.now() - 82800000).toISOString(), tz: 'Asia/Seoul' },
   ];
 }
@@ -235,13 +235,13 @@ function load() {
 }
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(state.entries)); return true; }
-  catch { toast('저장 공간이 가득 찼어요 — 사진 수를 줄여 보세요'); return false; }
+  catch { toast('Storage is full — try fewer photos'); return false; }
 }
 
 // ---------- 설정 ----------
 $('btnEnter').onclick = () => {
   const name = $('inName').value.trim();
-  if (!name) { toast('이름을 입력해 주세요'); return; }
+  if (!name) { toast('Please enter your name'); return; }
   state.name = name;
   localStorage.setItem(KEY + ':name', name);
   enterMain();
@@ -287,7 +287,7 @@ function compress(file) {
 }
 $('btnSave').onclick = () => {
   const text = $('inText').value;
-  if (!text.trim() && !state.photos.length) { toast('내용이나 사진을 넣어 주세요'); return; }
+  if (!text.trim() && !state.photos.length) { toast('Add some text or a photo'); return; }
   state.entries.push({
     id: Math.random().toString(36).slice(2, 10),
     author: state.name, text, date: $('inDate').value || localDate(),
@@ -299,23 +299,24 @@ $('btnSave').onclick = () => {
   $('inText').value = ''; state.photos = []; state.mood = '';
   renderThumbs();
   [...$('moods').children].forEach(x => x.classList.remove('sel'));
-  toast('오늘의 일기를 남겼어요 ♥');
+  toast("Saved today's entry ♥");
   render();
 };
 
 // ---------- 타임라인 ----------
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const fmtDay = (d) => {
   const [y, m, dd] = d.split('-').map(Number);
-  const w = '일월화수목금토'[new Date(y, m - 1, dd).getDay()];
-  const label = `${m}월 ${dd}일 (${w})`;
-  return d === localDate() ? `오늘 · ${label}` : label;
+  const label = `${MONTHS[m - 1]} ${dd} (${WDAYS[new Date(y, m - 1, dd).getDay()]})`;
+  return d === localDate() ? `Today · ${label}` : label;
 };
 function fmtTime(iso, tz) {
-  const opt = { hour: '2-digit', minute: '2-digit', hour12: false };
-  let s = new Date(iso).toLocaleTimeString('ko-KR', opt);
+  const opt = { hour: 'numeric', minute: '2-digit', hour12: true };
+  let s = new Date(iso).toLocaleTimeString('en-US', opt);
   const myTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (tz && tz !== myTz) {
-    try { s += ` (현지 ${new Date(iso).toLocaleTimeString('ko-KR', { ...opt, timeZone: tz })})`; } catch {}
+    try { s += ` (their time ${new Date(iso).toLocaleTimeString('en-US', { ...opt, timeZone: tz })})`; } catch {}
   }
   return s;
 }
@@ -328,7 +329,7 @@ function render() {
   for (const e of sorted) (groups[e.date] ||= []).push(e);
   const days = Object.keys(groups);
   if (!days.length) {
-    $('timeline').innerHTML = `<div class="empty">아직 일기가 없어요.<br>오늘의 첫 페이지를 남겨 보세요 ✏️</div>`;
+    $('timeline').innerHTML = `<div class="empty">No entries yet.<br>Write today's first page ✏️</div>`;
   } else {
     $('timeline').innerHTML = days.map((d) => `
       <section class="day">
@@ -341,8 +342,8 @@ function render() {
               <span class="time">${fmtTime(e.createdAt, e.tz)}</span>
             </div>
             <div class="text">${esc(e.text)}</div>
-            ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${p}" data-full="${p}" alt="일기 사진">`).join('')}</div>` : ''}
-            ${e.author === state.name ? `<button class="del" data-id="${e.id}">삭제</button>` : ''}
+            ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${p}" data-full="${p}" alt="diary photo">`).join('')}</div>` : ''}
+            ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
           </article>`).join('')}
       </section>`).join('');
   }
@@ -350,14 +351,14 @@ function render() {
   if (dates.length) {
     const [y, m, dd] = dates[0].split('-').map(Number);
     const days2 = Math.floor((Date.now() - new Date(y, m - 1, dd)) / 86400000) + 1;
-    $('daysBadge').textContent = `함께 쓴 지 ${days2}일째`;
+    $('daysBadge').textContent = `Day ${days2} of our diary`;
   }
 }
 $('timeline').onclick = (e) => {
   const img = e.target.closest('img[data-full]');
   if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
   const del = e.target.closest('.del');
-  if (del && confirm('이 일기를 삭제할까요?')) {
+  if (del && confirm('Delete this entry?')) {
     state.entries = state.entries.filter((x) => x.id !== del.dataset.id);
     persist(); render();
   }
