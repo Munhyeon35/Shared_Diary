@@ -149,6 +149,28 @@
   }
   .empty { text-align: center; color: var(--ink-soft); font-size: 14px; margin-top: 60px; line-height: 1.8; }
 
+  /* locked / waiting states (exchange-diary rule) */
+  .entry.locked {
+    border-left-color: var(--ink-soft); border-style: dashed; background: transparent;
+    text-align: center; padding: 20px 14px;
+  }
+  .entry.locked .meta { justify-content: center; }
+  .entry.locked .who { color: var(--ink-soft); }
+  .lock-text { font-size: 14px; color: var(--ink-soft); line-height: 1.7; margin: 4px 0 12px; }
+  .btn-unlock {
+    padding: 9px 18px; font-size: 14px; font-weight: 700;
+    background: var(--me); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+  }
+  .waiting {
+    margin-top: 8px; font-size: 12.5px; color: var(--ink-soft);
+    text-align: center; padding: 10px; font-style: italic;
+  }
+  .compose-title {
+    font-size: 13px; font-weight: 800; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+  }
+  .written-badge { font-size: 12px; color: var(--me); font-weight: 700; margin-left: 6px; }
+
   #viewer {
     position: fixed; inset: 0; background: rgba(20,15,10,0.92); z-index: 50;
     display: none; align-items: center; justify-content: center;
@@ -175,7 +197,9 @@
   </header>
 
   <div class="demo-note"><b>Demo</b> — entries here are saved only in this device's browser.
-  To actually share with each other, deploy the server version (couple-diary).</div>
+  The rule: <b>one page per person per day, and a day's pages unlock only when both of you have
+  written</b>. Try writing today's page to unlock Partner's. To actually share with each other,
+  deploy the server version (couple-diary).</div>
 
   <div id="setup" class="setup hidden">
     <div class="big">📖</div>
@@ -188,11 +212,12 @@
 
   <div id="main" class="hidden">
     <div class="compose">
+      <div class="compose-title">My page<span class="written-badge" id="writtenBadge"></span></div>
       <div class="row">
         <input type="date" id="inDate">
         <div class="moods" id="moods"></div>
       </div>
-      <textarea id="inText" placeholder="How was your day?"></textarea>
+      <textarea id="inText" placeholder="How was your day? One page per day — you can come back and edit it."></textarea>
       <div class="thumbs" id="thumbs"></div>
       <div class="actions">
         <label class="btn-photo">📷 Photos
@@ -211,7 +236,7 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const MOODS = ['😊','🥰','😴','😢','😤','🤒'];
-const KEY = 'uri-ilgi-demo';
+const KEY = 'uri-ilgi-demo-v2'; // v2: one page per day + mutual-unlock rule
 const state = { name: localStorage.getItem(KEY + ':name') || '', mood: '', photos: [], entries: [] };
 
 // ---------- storage (demo: localStorage) ----------
@@ -219,19 +244,27 @@ function localDate(offsetDays = 0) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-function seed() {
+function seed(name) {
+  // Day -2: both wrote → open. Day -1 and today: only Partner wrote → locked
+  // until you write your own page for that day.
   return [
-    { id: 's1', author: 'Partner', date: localDate(-1), mood: '🥰',
-      text: "(sample) Stopped by the grocery store after work and saw the ramen you love — took a photo of it. On days the time zones steal our call, we can just leave our day here like this!",
-      photos: [], createdAt: new Date(Date.now() - 86400000).toISOString(), tz: 'America/Los_Angeles' },
-    { id: 's2', author: 'Me', date: localDate(-1), mood: '😊',
+    { id: 's1', author: name, date: localDate(-2), mood: '😊',
       text: "(sample) I wrapped up an experiment at work today. Reading each other's day before our call starts makes the talk go so much deeper.",
-      photos: [], createdAt: new Date(Date.now() - 82800000).toISOString(), tz: 'Asia/Seoul' },
+      photos: [], createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), tz: 'Asia/Seoul' },
+    { id: 's2', author: 'Partner', date: localDate(-2), mood: '🥰',
+      text: "(sample) Stopped by the grocery store after work and saw the ramen you love — took a photo of it. On days the time zones steal our call, we can just leave our day here like this!",
+      photos: [], createdAt: new Date(Date.now() - 2 * 86400000 + 3600000).toISOString(), tz: 'America/Los_Angeles' },
+    { id: 's3', author: 'Partner', date: localDate(-1), mood: '😴',
+      text: "(sample) Surprise — you unlocked this by writing your own page for this day. No peeking without sharing your day too. That's the whole idea!",
+      photos: [], createdAt: new Date(Date.now() - 86400000).toISOString(), tz: 'America/Los_Angeles' },
+    { id: 's4', author: 'Partner', date: localDate(0), mood: '🥰',
+      text: "(sample) You wrote today's page, so now you can read mine. Time zones apart, but our days still meet here ♥",
+      photos: [], createdAt: new Date(Date.now() - 3600000).toISOString(), tz: 'America/Los_Angeles' },
   ];
 }
 function load() {
-  try { state.entries = JSON.parse(localStorage.getItem(KEY)) || seed(); }
-  catch { state.entries = seed(); }
+  try { state.entries = JSON.parse(localStorage.getItem(KEY)) || seed(state.name); }
+  catch { state.entries = seed(state.name); }
 }
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(state.entries)); return true; }
@@ -285,22 +318,41 @@ function compress(file) {
     img.src = URL.createObjectURL(file);
   });
 }
+// The compose card is an editor for one day's page: prefill with my page
+// for the selected date (if any).
+function loadCompose() {
+  const d = $('inDate').value;
+  const mine = state.entries.find((e) => e.author === state.name && e.date === d);
+  $('inText').value = mine ? mine.text : '';
+  state.mood = mine ? (mine.mood || '') : '';
+  state.photos = mine ? [...mine.photos] : [];
+  [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
+  renderThumbs();
+  $('btnSave').textContent = mine ? 'Update my page' : 'Save my page';
+  $('writtenBadge').textContent = mine ? '✓ written' : '';
+}
+$('inDate').onchange = loadCompose;
+
 $('btnSave').onclick = () => {
   const text = $('inText').value;
   if (!text.trim() && !state.photos.length) { toast('Add some text or a photo'); return; }
-  state.entries.push({
-    id: Math.random().toString(36).slice(2, 10),
-    author: state.name, text, date: $('inDate').value || localDate(),
+  // One page per person per day: saving again for the same date updates it
+  const d = $('inDate').value || localDate();
+  const existing = state.entries.find((e) => e.author === state.name && e.date === d);
+  const entry = {
+    id: existing ? existing.id : Math.random().toString(36).slice(2, 10),
+    author: state.name, text, date: d,
     mood: state.mood, photos: state.photos,
-    createdAt: new Date().toISOString(),
+    createdAt: existing ? existing.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  });
-  if (!persist()) { state.entries.pop(); return; }
-  $('inText').value = ''; state.photos = []; state.mood = '';
-  renderThumbs();
-  [...$('moods').children].forEach(x => x.classList.remove('sel'));
-  toast("Saved today's entry ♥");
+  };
+  const prev = state.entries;
+  state.entries = existing ? state.entries.map((e) => (e === existing ? entry : e)) : [...state.entries, entry];
+  if (!persist()) { state.entries = prev; return; }
+  toast('Saved your page ♥');
   render();
+  loadCompose();
 };
 
 // ---------- timeline ----------
@@ -322,30 +374,51 @@ function fmtTime(iso, tz) {
 }
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+function entryCard(e) {
+  return `
+    <article class="entry ${e.author === state.name ? 'mine' : ''}">
+      <div class="meta">
+        <span class="who">${esc(e.author)}</span>
+        ${e.mood ? `<span class="mood">${e.mood}</span>` : ''}
+        <span class="time">${fmtTime(e.createdAt, e.tz)}</span>
+      </div>
+      <div class="text">${esc(e.text)}</div>
+      ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${p}" data-full="${p}" alt="diary photo">`).join('')}</div>` : ''}
+      ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
+    </article>`;
+}
+// Partner wrote this day but I haven't: their page stays sealed until I write mine
+function lockedCard(e) {
+  return `
+    <article class="entry locked">
+      <div class="meta"><span class="who">${esc(e.author)}</span><span class="time">${fmtTime(e.createdAt, e.tz)}</span></div>
+      <div class="lock-text">🔒 ${esc(e.author)} left a page for this day.<br>Write yours to read it.</div>
+      <button class="btn-unlock" data-date="${e.date}">Write my page</button>
+    </article>`;
+}
 function render() {
   const groups = {};
-  const sorted = [...state.entries].sort((a, b) =>
-    a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date));
-  for (const e of sorted) (groups[e.date] ||= []).push(e);
-  const days = Object.keys(groups);
+  for (const e of state.entries) (groups[e.date] ||= []).push(e);
+  const days = Object.keys(groups).sort().reverse();
+  // Exchange-diary rule: partner's page for a day is readable only if I also
+  // wrote a page for that day.
+  const myDates = new Set(state.entries.filter((e) => e.author === state.name).map((e) => e.date));
+  const partnerName = state.entries.find((e) => e.author !== state.name)?.author;
   if (!days.length) {
     $('timeline').innerHTML = `<div class="empty">No entries yet.<br>Write today's first page ✏️</div>`;
   } else {
-    $('timeline').innerHTML = days.map((d) => `
+    $('timeline').innerHTML = days.map((d) => {
+      const mine = groups[d].find((e) => e.author === state.name);
+      const partner = groups[d].find((e) => e.author !== state.name);
+      return `
       <section class="day">
         <div class="day-label">${fmtDay(d)}</div>
-        ${groups[d].map((e) => `
-          <article class="entry ${e.author === state.name ? 'mine' : ''}">
-            <div class="meta">
-              <span class="who">${esc(e.author)}</span>
-              ${e.mood ? `<span class="mood">${e.mood}</span>` : ''}
-              <span class="time">${fmtTime(e.createdAt, e.tz)}</span>
-            </div>
-            <div class="text">${esc(e.text)}</div>
-            ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${p}" data-full="${p}" alt="diary photo">`).join('')}</div>` : ''}
-            ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
-          </article>`).join('')}
-      </section>`).join('');
+        ${mine ? entryCard(mine) : ''}
+        ${partner
+          ? (myDates.has(d) ? entryCard(partner) : lockedCard(partner))
+          : `<div class="waiting">${esc(partnerName || 'Your partner')} hasn't written this day yet</div>`}
+      </section>`;
+    }).join('');
   }
   const dates = state.entries.map((e) => e.date).sort();
   if (dates.length) {
@@ -357,10 +430,18 @@ function render() {
 $('timeline').onclick = (e) => {
   const img = e.target.closest('img[data-full]');
   if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
+  const unlock = e.target.closest('.btn-unlock');
+  if (unlock) {
+    $('inDate').value = unlock.dataset.date;
+    loadCompose();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('inText').focus();
+    return;
+  }
   const del = e.target.closest('.del');
-  if (del && confirm('Delete this entry?')) {
+  if (del && confirm('Delete this page? Their page for this day will lock again.')) {
     state.entries = state.entries.filter((x) => x.id !== del.dataset.id);
-    persist(); render();
+    persist(); render(); loadCompose();
   }
 };
 $('viewer').onclick = () => $('viewer').classList.remove('on');
@@ -375,7 +456,7 @@ function enterMain() {
   $('setup').classList.add('hidden');
   $('main').classList.remove('hidden');
   $('inDate').value = localDate();
-  load(); render();
+  load(); render(); loadCompose();
 }
 if (state.name) enterMain();
 else $('setup').classList.remove('hidden');

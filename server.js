@@ -109,9 +109,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === '/api/entries' && req.method === 'GET') {
+      // Exchange-diary rule: a partner's page for date D is readable only if
+      // the requester ("me") has also written a page for D. Otherwise it is
+      // returned masked ({locked: true}, no text/photos/mood).
+      const me = url.searchParams.get('me') || '';
       const entries = loadEntries();
-      entries.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
-      return json(res, 200, { entries });
+      const myDates = new Set(entries.filter((e) => e.author === me).map((e) => e.date));
+      const visible = entries.map((e) =>
+        e.author === me || myDates.has(e.date)
+          ? e
+          : { id: e.id, author: e.author, date: e.date, createdAt: e.createdAt, tz: e.tz, locked: true });
+      visible.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
+      return json(res, 200, { entries: visible });
     }
 
     if (p === '/api/entries' && req.method === 'POST') {
@@ -122,20 +131,35 @@ const server = http.createServer(async (req, res) => {
       if (!author || (!text.trim() && !(body.photos || []).length)) {
         return json(res, 400, { error: 'empty' });
       }
-      const id = crypto.randomBytes(8).toString('hex');
+      // One page per person per day: a repeat POST for the same author+date
+      // updates that page instead of adding another entry.
+      const entries = loadEntries();
+      const existing = entries.find((e) => e.author === author && e.date === date);
+      const id = existing ? existing.id : crypto.randomBytes(8).toString('hex');
       const photos = [];
-      (body.photos || []).slice(0, 10).forEach((dataUrl, i) => {
-        const name = savePhoto(dataUrl, id, i);
-        if (name) photos.push(name);
+      (body.photos || []).slice(0, 10).forEach((item, i) => {
+        if (typeof item !== 'string') return;
+        if (item.startsWith('data:')) {
+          // new photo: save under a unique suffix so edits never collide
+          const name = savePhoto(item, id, crypto.randomBytes(4).toString('hex'));
+          if (name) photos.push(name);
+        } else if (existing && existing.photos.includes(item)) {
+          photos.push(item); // kept photo from the previous version of this page
+        }
       });
+      if (existing) {
+        existing.photos.filter((n) => !photos.includes(n))
+          .forEach((n) => fs.rm(path.join(PHOTO_DIR, n), () => {}));
+      }
       const entry = {
         id, author, date, text, photos,
         mood: String(body.mood || '').slice(0, 8),
-        createdAt: new Date().toISOString(),
+        createdAt: existing ? existing.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         tz: String(body.tz || '').slice(0, 50), // author's time zone (to show "their time" on the partner's screen)
       };
-      const entries = loadEntries();
-      entries.push(entry);
+      if (existing) entries[entries.indexOf(existing)] = entry;
+      else entries.push(entry);
       saveEntries(entries);
       return json(res, 200, { entry });
     }

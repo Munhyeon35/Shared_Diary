@@ -142,6 +142,28 @@
   }
   .empty { text-align: center; color: var(--ink-soft); font-size: 14px; margin-top: 60px; line-height: 1.8; }
 
+  /* ---- locked / waiting states (exchange-diary rule) ---- */
+  .entry.locked {
+    border-left-color: #c9c0b2; border-style: dashed; background: transparent;
+    text-align: center; padding: 20px 14px;
+  }
+  .entry.locked .meta { justify-content: center; }
+  .entry.locked .who { color: var(--ink-soft); }
+  .lock-text { font-size: 14px; color: var(--ink-soft); line-height: 1.7; margin: 4px 0 12px; }
+  .btn-unlock {
+    padding: 9px 18px; font-size: 14px; font-weight: 700;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+  }
+  .waiting {
+    margin-top: 8px; font-size: 12.5px; color: var(--ink-soft);
+    text-align: center; padding: 10px; font-style: italic;
+  }
+  .compose-title {
+    font-size: 13px; font-weight: 800; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+  }
+  .written-badge { font-size: 12px; color: var(--me); font-weight: 700; margin-left: 6px; }
+
   /* ---- fullscreen photo viewer ---- */
   #viewer {
     position: fixed; inset: 0; background: rgba(20,15,10,0.92); z-index: 50;
@@ -183,11 +205,12 @@
   <!-- main -->
   <div id="main" class="hidden">
     <div class="compose">
+      <div class="compose-title">My page<span class="written-badge" id="writtenBadge"></span></div>
       <div class="row">
         <input type="date" id="inDate">
         <div class="moods" id="moods"></div>
       </div>
-      <textarea id="inText" placeholder="How was your day?"></textarea>
+      <textarea id="inText" placeholder="How was your day? One page per day — you can come back and edit it."></textarea>
       <div class="thumbs" id="thumbs"></div>
       <div class="actions">
         <label class="btn-photo">📷 Photos
@@ -223,6 +246,8 @@ async function api(path, opts = {}) {
   return res.json();
 }
 function photoUrl(name) { return `/photos/${name}?code=${encodeURIComponent(state.code)}`; }
+// Compose thumbnails hold a mix of new photos (data URLs) and kept ones (server filenames)
+const thumbSrc = (p) => (p.startsWith('data:') ? p : photoUrl(p));
 function logout() {
   localStorage.removeItem('code');
   state.code = '';
@@ -263,8 +288,23 @@ $('inPhoto').onchange = async (e) => {
 };
 function renderThumbs() {
   $('thumbs').innerHTML = state.photos.map((p, i) =>
-    `<div class="t"><img src="${p}"><button class="x" data-i="${i}">✕</button></div>`).join('');
+    `<div class="t"><img src="${thumbSrc(p)}"><button class="x" data-i="${i}">✕</button></div>`).join('');
 }
+
+// The compose card is an editor for one day's page: prefill it with my
+// existing page for the selected date (if any).
+function loadCompose() {
+  const d = $('inDate').value;
+  const mine = state.entries.find((e) => e.author === state.name && e.date === d && !e.locked);
+  $('inText').value = mine ? mine.text : '';
+  state.mood = mine ? (mine.mood || '') : '';
+  state.photos = mine ? [...mine.photos] : [];
+  [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
+  renderThumbs();
+  $('btnSave').textContent = mine ? 'Update my page' : 'Save my page';
+  $('writtenBadge').textContent = mine ? '✓ written' : '';
+}
+$('inDate').onchange = loadCompose;
 $('thumbs').onclick = (e) => {
   const b = e.target.closest('.x'); if (!b) return;
   state.photos.splice(+b.dataset.i, 1); renderThumbs();
@@ -301,11 +341,9 @@ $('btnSave').onclick = async () => {
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     });
-    $('inText').value = ''; state.photos = []; state.mood = '';
-    renderThumbs();
-    [...$('moods').children].forEach(x => x.classList.remove('sel'));
-    toast("Saved today's entry ♥");
+    toast('Saved your page ♥');
     await refresh();
+    loadCompose();
   } catch (e) { toast('Save failed: ' + e.message); }
   finally { $('btnSave').disabled = false; }
 };
@@ -334,6 +372,28 @@ function fmtTime(iso, tz) {
 }
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+function entryCard(e) {
+  return `
+    <article class="entry ${e.author === state.name ? 'mine' : ''}">
+      <div class="meta">
+        <span class="who">${esc(e.author)}</span>
+        ${e.mood ? `<span class="mood">${e.mood}</span>` : ''}
+        <span class="time">${fmtTime(e.createdAt, e.tz)}</span>
+      </div>
+      <div class="text">${esc(e.text)}</div>
+      ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${photoUrl(p)}" data-full="${photoUrl(p)}">`).join('')}</div>` : ''}
+      ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
+    </article>`;
+}
+// Partner wrote this day but I haven't: their page stays sealed until I write mine
+function lockedCard(e) {
+  return `
+    <article class="entry locked">
+      <div class="meta"><span class="who">${esc(e.author)}</span><span class="time">${fmtTime(e.createdAt, e.tz)}</span></div>
+      <div class="lock-text">🔒 ${esc(e.author)} left a page for this day.<br>Write yours to read it.</div>
+      <button class="btn-unlock" data-date="${e.date}">Write my page</button>
+    </article>`;
+}
 function renderTimeline() {
   const groups = {};
   for (const e of state.entries) (groups[e.date] ||= []).push(e);
@@ -342,28 +402,34 @@ function renderTimeline() {
     $('timeline').innerHTML = `<div class="empty">No entries yet.<br>Write today's first page ✏️</div>`;
     return;
   }
-  $('timeline').innerHTML = days.map((d) => `
+  const partnerName = state.entries.find((e) => e.author !== state.name)?.author;
+  $('timeline').innerHTML = days.map((d) => {
+    const mine = groups[d].find((e) => e.author === state.name);
+    const partner = groups[d].find((e) => e.author !== state.name);
+    return `
     <section class="day">
       <div class="day-label">${fmtDay(d)}</div>
-      ${groups[d].map((e) => `
-        <article class="entry ${e.author === state.name ? 'mine' : ''}">
-          <div class="meta">
-            <span class="who">${esc(e.author)}</span>
-            ${e.mood ? `<span class="mood">${e.mood}</span>` : ''}
-            <span class="time">${fmtTime(e.createdAt, e.tz)}</span>
-          </div>
-          <div class="text">${esc(e.text)}</div>
-          ${e.photos.length ? `<div class="pics">${e.photos.map((p) => `<img loading="lazy" src="${photoUrl(p)}" data-full="${photoUrl(p)}">`).join('')}</div>` : ''}
-          ${e.author === state.name ? `<button class="del" data-id="${e.id}">Delete</button>` : ''}
-        </article>`).join('')}
-    </section>`).join('');
+      ${mine ? entryCard(mine) : ''}
+      ${partner
+        ? (partner.locked ? lockedCard(partner) : entryCard(partner))
+        : `<div class="waiting">${esc(partnerName || 'Your partner')} hasn't written this day yet</div>`}
+    </section>`;
+  }).join('');
 }
 $('timeline').onclick = async (e) => {
   const img = e.target.closest('img[data-full]');
   if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
+  const unlock = e.target.closest('.btn-unlock');
+  if (unlock) {
+    $('inDate').value = unlock.dataset.date;
+    loadCompose();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('inText').focus();
+    return;
+  }
   const del = e.target.closest('.del');
-  if (del && confirm('Delete this entry?')) {
-    try { await api('/api/entries/' + del.dataset.id, { method: 'DELETE' }); await refresh(); }
+  if (del && confirm('Delete this page? Their page for this day will lock again.')) {
+    try { await api('/api/entries/' + del.dataset.id, { method: 'DELETE' }); await refresh(); loadCompose(); }
     catch (err) { toast('Delete failed: ' + err.message); }
   }
 };
@@ -371,7 +437,7 @@ $('viewer').onclick = () => $('viewer').classList.remove('on');
 
 // ---------- refresh & startup ----------
 async function refresh() {
-  const { entries } = await api('/api/entries');
+  const { entries } = await api('/api/entries?me=' + encodeURIComponent(state.name));
   state.entries = entries;
   renderTimeline();
   const dates = entries.map((e) => e.date);
@@ -392,6 +458,7 @@ async function enterMain() {
   $('main').classList.remove('hidden');
   $('inDate').value = localDate();
   try { await refresh(); } catch {}
+  loadCompose();
 }
 if (state.code && state.name) enterMain();
 else $('setup').classList.remove('hidden');
