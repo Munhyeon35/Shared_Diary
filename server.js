@@ -147,12 +147,22 @@ const server = http.createServer(async (req, res) => {
         existing.photos.filter((n) => !photos.includes(n))
           .forEach((n) => fs.rm(path.join(PHOTO_DIR, n), () => {}));
       }
+      const now = new Date().toISOString();
+      const mood = String(body.mood || '').slice(0, 8);
+      const tz = String(body.tz || '').slice(0, 50); // author's time zone (to show "their time" on the partner's screen)
+      // Edit log: one stamp per save that actually changed something, so
+      // "edited" is always backed by a visible when. edits[0] is the writing.
+      const changed = !existing
+        || existing.text !== text
+        || existing.mood !== mood
+        || existing.photos.join() !== photos.join();
+      const edits = (existing && Array.isArray(existing.edits) ? existing.edits
+        : existing ? [{ at: existing.createdAt, tz: existing.tz }] : []).slice(-99);
+      if (changed) edits.push({ at: now, tz });
       const entry = {
-        id, author, date, text, photos,
-        mood: String(body.mood || '').slice(0, 8),
-        createdAt: existing ? existing.createdAt : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        tz: String(body.tz || '').slice(0, 50), // author's time zone (to show "their time" on the partner's screen)
+        id, author, date, text, photos, mood, tz, edits,
+        createdAt: existing ? existing.createdAt : now,
+        updatedAt: changed ? now : (existing ? existing.updatedAt : now),
       };
       if (existing) entries[entries.indexOf(existing)] = entry;
       else entries.push(entry);

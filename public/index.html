@@ -194,7 +194,45 @@
   .page-head .who { font-family: var(--serif); font-size: 15px; font-weight: 600; color: var(--you); }
   .page-mine .page-head .who { color: var(--me); }
   .page-head .time { margin-left: auto; font-size: 11px; color: var(--ink-soft); }
-  .page-head .edited { font-size: 10.5px; color: var(--ink-soft); font-style: italic; }
+  .page-head .edited {
+    font-size: 10.5px; color: var(--ink-soft); font-style: italic;
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: inherit; text-decoration: underline dotted;
+  }
+  .page-head .edited:hover, .page-head .edited:focus-visible { color: var(--ink); outline: none; }
+
+  /* ---- edit history ---- */
+  #hist {
+    position: fixed; inset: 0; z-index: 55; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(24, 18, 12, 0.45);
+  }
+  #hist.on { display: flex; }
+  .hist-box {
+    width: 100%; max-width: 340px; background: var(--paper);
+    border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 14px;
+    box-shadow: 0 16px 44px var(--shadow);
+  }
+  .hist-box h3 { font-family: var(--serif); font-size: 16px; font-weight: 600; margin-bottom: 3px; }
+  .hist-box .sub { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 12px; }
+  .hist-box ol { list-style: none; max-height: 46vh; overflow-y: auto; }
+  .hist-box li {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px;
+  }
+  .hist-box li:first-child { border-top: none; }
+  .hist-box .lbl {
+    flex: none; width: 52px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft);
+  }
+  .hist-box li.first .lbl { color: var(--me); }
+  .hist-box .ts { font-variant-numeric: tabular-nums; }
+  .hist-box .ts .their { color: var(--ink-soft); font-size: 11px; }
+  .hist-box .close {
+    width: 100%; margin-top: 12px; padding: 9px; font-size: 13.5px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 7px; cursor: pointer;
+  }
 
   /* ruled paper: text sits on the lines */
   .ruled {
@@ -346,6 +384,14 @@
 </div>
 
 <div id="viewer"><img id="viewerImg" alt=""></div>
+<div id="hist">
+  <div class="hist-box">
+    <h3>Edit history</h3>
+    <div class="sub" id="histSub"></div>
+    <ol id="histList"></ol>
+    <button class="close" id="histClose">Close</button>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -387,7 +433,41 @@ function fmtTime(iso, tz) {
   }
   return s;
 }
+// Full stamp for the edit log: edits can land days after the page was written
+function fmtStamp(iso, tz) {
+  const d = new Date(iso);
+  const opt = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+  let s = esc(d.toLocaleString('en-US', opt));
+  const myTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (tz && tz !== myTz) {
+    try {
+      s += ` <span class="their">· their time ${esc(d.toLocaleString('en-US', { ...opt, timeZone: tz }))}</span>`;
+    } catch {}
+  }
+  return s;
+}
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Pages written before the edit log existed only carry createdAt/updatedAt
+function editLog(e) {
+  if (Array.isArray(e.edits) && e.edits.length) return e.edits;
+  const log = [{ at: e.createdAt, tz: e.tz }];
+  if (e.updatedAt && e.updatedAt !== e.createdAt) log.push({ at: e.updatedAt, tz: e.tz });
+  return log;
+}
+function showHistory(e) {
+  const log = editLog(e);
+  $('histSub').textContent = `${e.author} · ${longDate(e.date)}`;
+  $('histList').innerHTML = log.map((r, i) =>
+    `<li class="${i === 0 ? 'first' : ''}">
+       <span class="lbl">${i === 0 ? 'Written' : 'Edit ' + i}</span>
+       <span class="ts">${fmtStamp(r.at, r.tz)}</span>
+     </li>`).join('');
+  $('hist').classList.add('on');
+}
+function closeHistory() { $('hist').classList.remove('on'); }
+$('histClose').onclick = closeHistory;
+$('hist').onclick = (e) => { if (e.target.id === 'hist') closeHistory(); };
 
 // ---------- API ----------
 async function api(path, opts = {}) {
@@ -520,6 +600,14 @@ $('btnDel').onclick = async () => {
   } catch (e) { toast('Delete failed: ' + e.message); }
 };
 
+// "· edited" opens the page's full edit log
+function editedTag(e) {
+  const n = editLog(e).length - 1;
+  if (n < 1) return '';
+  const last = editLog(e)[n];
+  return ` <button class="edited" data-hist="${e.id}">· edited${n > 1 ? ` ×${n}` : ''} ${fmtTime(last.at, last.tz)}</button>`;
+}
+
 // ---------- rendering one spread ----------
 function renderSpread(keepDraft = false) {
   const { mine, yours } = pagesFor(state.date);
@@ -543,10 +631,7 @@ function renderSpread(keepDraft = false) {
   }
   $('btnSave').textContent = mine ? 'Update' : 'Save';
   $('btnDel').classList.toggle('hidden', !mine);
-  $('myTime').innerHTML = mine
-    ? `${fmtTime(mine.createdAt, mine.tz)}${mine.updatedAt && mine.updatedAt !== mine.createdAt
-        ? ` <span class="edited">· edited ${fmtTime(mine.updatedAt, mine.tz)}</span>` : ''}`
-    : '';
+  $('myTime').innerHTML = mine ? fmtTime(mine.createdAt, mine.tz) + editedTag(mine) : '';
 
   // right page — read only
   const who = yours ? yours.author : (partnerName() || 'Your partner');
@@ -554,9 +639,7 @@ function renderSpread(keepDraft = false) {
     ? `<div class="page-head">
          <span class="who">${esc(yours.author)}</span>
          ${yours.mood ? `<span class="mood-shown">${yours.mood}</span>` : ''}
-         <span class="time">${fmtTime(yours.createdAt, yours.tz)}${
-           yours.updatedAt && yours.updatedAt !== yours.createdAt
-             ? ` <span class="edited">· edited</span>` : ''}</span>
+         <span class="time">${fmtTime(yours.createdAt, yours.tz)}${editedTag(yours)}</span>
        </div>
        <div class="page-text ruled">${esc(yours.text)}</div>
        ${yours.photos.length
@@ -656,13 +739,23 @@ document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowLeft') $('btnPrev').click();
   if (e.key === 'ArrowRight' && !$('btnNext').disabled) $('btnNext').click();
-  if (e.key === 'Escape') { closeCal(); $('viewer').classList.remove('on'); }
+  if (e.key === 'Escape') { closeCal(); closeHistory(); $('viewer').classList.remove('on'); }
 });
 
-// ---------- photo viewer ----------
+// ---------- photo viewer & edit log ----------
+function openHistById(id) {
+  const entry = state.entries.find((x) => x.id === id);
+  if (entry) showHistory(entry);
+}
 $('pageYours').onclick = (e) => {
   const img = e.target.closest('img[data-full]');
-  if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); }
+  if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
+  const h = e.target.closest('[data-hist]');
+  if (h) openHistById(h.dataset.hist);
+};
+$('myTime').onclick = (e) => {
+  const h = e.target.closest('[data-hist]');
+  if (h) openHistById(h.dataset.hist);
 };
 $('viewer').onclick = () => $('viewer').classList.remove('on');
 
