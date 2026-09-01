@@ -109,18 +109,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === '/api/entries' && req.method === 'GET') {
-      // Exchange-diary rule: a partner's page for date D is readable only if
-      // the requester ("me") has also written a page for D. Otherwise it is
-      // returned masked ({locked: true}, no text/photos/mood).
-      const me = url.searchParams.get('me') || '';
+      // Pages are readable as soon as they are written. An earlier version
+      // gated a partner's page behind writing your own for the same day, but
+      // that punished the person whose day starts later (Korea/SF are ~16h
+      // apart) and was trivially bypassed by saving a placeholder character.
+      // Writing daily is encouraged in the UI instead, never enforced here.
       const entries = loadEntries();
-      const myDates = new Set(entries.filter((e) => e.author === me).map((e) => e.date));
-      const visible = entries.map((e) =>
-        e.author === me || myDates.has(e.date)
-          ? e
-          : { id: e.id, author: e.author, date: e.date, createdAt: e.createdAt, tz: e.tz, locked: true });
-      visible.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
-      return json(res, 200, { entries: visible });
+      entries.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
+      return json(res, 200, { entries });
     }
 
     if (p === '/api/entries' && req.method === 'POST') {
