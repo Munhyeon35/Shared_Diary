@@ -223,11 +223,14 @@
   .hist-box li:first-child { border-top: none; }
   .hist-box .lbl {
     flex: none; width: 52px; font-size: 10px; font-weight: 700;
-    letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft);
+    letter-spacing: 0.05em; text-transform: uppercase; color: inherit;
   }
-  .hist-box li.first .lbl { color: var(--me); }
   .hist-box .ts { font-variant-numeric: tabular-nums; }
-  .hist-box .ts .their { color: var(--ink-soft); font-size: 11px; }
+  .hist-box .ts .their { font-size: 11px; opacity: 0.7; }
+  /* the newest save carries the author's colour; earlier ones recede */
+  .hist-box li.past { color: var(--ink-soft); }
+  .hist-box li.latest { color: var(--me); font-weight: 600; }
+  #hist.yours .hist-box li.latest { color: var(--you); }
   .hist-box .close {
     width: 100%; margin-top: 12px; padding: 9px; font-size: 13.5px;
     background: var(--bg); color: var(--ink); border: 1px solid var(--line);
@@ -458,11 +461,17 @@ function editLog(e) {
 function showHistory(e) {
   const log = editLog(e);
   $('histSub').textContent = `${e.author} · ${longDate(e.date)}`;
-  $('histList').innerHTML = log.map((r, i) =>
-    `<li class="${i === 0 ? 'first' : ''}">
-       <span class="lbl">${i === 0 ? 'Written' : 'Edit ' + i}</span>
-       <span class="ts">${fmtStamp(r.at, r.tz)}</span>
+  // newest first; only the newest save is coloured, the rest recede
+  $('histList').innerHTML = log.map((r, i) => ({
+    label: i === 0 ? 'Updated' : 'Edited',
+    stamp: fmtStamp(r.at, r.tz),
+    latest: i === log.length - 1,
+  })).reverse().map((r) =>
+    `<li class="${r.latest ? 'latest' : 'past'}">
+       <span class="lbl">${r.label}</span>
+       <span class="ts">${r.stamp}</span>
      </li>`).join('');
+  $('hist').classList.toggle('yours', e.author !== state.name);
   $('hist').classList.add('on');
 }
 function closeHistory() { $('hist').classList.remove('on'); }
@@ -600,12 +609,14 @@ $('btnDel').onclick = async () => {
   } catch (e) { toast('Delete failed: ' + e.message); }
 };
 
-// "· edited" opens the page's full edit log
+// The page head shows only the last save; the label says whether that save
+// was the original writing or a later edit. Click opens the full log.
 function editedTag(e) {
-  const n = editLog(e).length - 1;
-  if (n < 1) return '';
-  const last = editLog(e)[n];
-  return ` <button class="edited" data-hist="${e.id}">· edited${n > 1 ? ` ×${n}` : ''} ${fmtTime(last.at, last.tz)}</button>`;
+  const log = editLog(e);
+  const n = log.length - 1;
+  const last = log[n];
+  const label = n > 0 ? `edited${n > 1 ? ` ×${n}` : ''}` : 'updated';
+  return `<button class="edited" data-hist="${e.id}">${label} ${fmtTime(last.at, last.tz)}</button>`;
 }
 
 // ---------- rendering one spread ----------
@@ -631,7 +642,7 @@ function renderSpread(keepDraft = false) {
   }
   $('btnSave').textContent = mine ? 'Update' : 'Save';
   $('btnDel').classList.toggle('hidden', !mine);
-  $('myTime').innerHTML = mine ? fmtTime(mine.createdAt, mine.tz) + editedTag(mine) : '';
+  $('myTime').innerHTML = mine ? editedTag(mine) : '';
 
   // right page — read only
   const who = yours ? yours.author : (partnerName() || 'Your partner');
@@ -639,7 +650,7 @@ function renderSpread(keepDraft = false) {
     ? `<div class="page-head">
          <span class="who">${esc(yours.author)}</span>
          ${yours.mood ? `<span class="mood-shown">${yours.mood}</span>` : ''}
-         <span class="time">${fmtTime(yours.createdAt, yours.tz)}${editedTag(yours)}</span>
+         <span class="time">${editedTag(yours)}</span>
        </div>
        <div class="page-text ruled">${esc(yours.text)}</div>
        ${yours.photos.length
