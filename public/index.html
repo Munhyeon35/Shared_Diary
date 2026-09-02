@@ -604,7 +604,7 @@ function editedTag(e) {
   const log = editLog(e);
   const n = log.length - 1;
   const last = log[n];
-  const label = n > 0 ? `edited${n > 1 ? ` ×${n}` : ''}` : 'updated';
+  const label = n > 0 ? 'edited' : 'updated';
   return `<button class="edited" data-hist="${e.id}">${label} ${fmtTime(last.at, last.tz)}</button>`;
 }
 
