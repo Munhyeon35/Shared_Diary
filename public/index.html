@@ -186,7 +186,7 @@
       color-mix(in srgb, var(--shadow) 55%, transparent),
       color-mix(in srgb, var(--shadow) 20%, transparent));
   }
-  .page { padding: 18px 20px 20px; min-height: 420px; display: flex; flex-direction: column; }
+  .page { padding: 18px 20px 20px; min-height: 640px; display: flex; flex-direction: column; }
   .page-head {
     display: flex; align-items: center; gap: 8px;
     padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line);
@@ -240,7 +240,7 @@
   /* One continuous line grid runs behind the whole page, under text and
      photos alike, so a photo never breaks the rhythm of the ruling. */
   .paper-body {
-    flex: 1; min-height: 280px; cursor: text;
+    flex: 1; min-height: 504px; cursor: text;   /* 18 ruled lines */
     background-image: repeating-linear-gradient(
       transparent, transparent calc(var(--lh) - 1px),
       var(--rule) calc(var(--lh) - 1px), var(--rule) var(--lh));
@@ -329,8 +329,8 @@
     .book { grid-template-columns: 1fr; }
     .spine { height: 1px; background: var(--line); }
     .page { min-height: 0; padding: 16px 16px 18px; }
-    .paper-body { min-height: 224px; }
-    .page-empty { min-height: 120px; }
+    .paper-body { min-height: 392px; }          /* 14 ruled lines */
+    .page-empty { min-height: 140px; }
   }
 
   /* ---- photo viewer & toast ---- */
