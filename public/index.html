@@ -872,9 +872,9 @@ function removePhoto(i) {
   renderEditor(); markDirty();
 }
 
-// A new photo comes in 360px tall, narrowing only if that would run past the
+// A new photo comes in 240px tall, narrowing only if that would run past the
 // edge of the page.
-const PHOTO_H = 360;
+const PHOTO_H = 240;
 function defaultWidth(imgW, imgH) {
   const col = $('editor').clientWidth || 460;
   return clampW((PHOTO_H * (imgW / imgH)) / col * 100);
