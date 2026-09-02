@@ -237,23 +237,37 @@
     border-radius: 7px; cursor: pointer;
   }
 
-  /* ruled paper: text sits on the lines */
-  .ruled {
-    font-family: var(--serif); font-size: 15.5px; line-height: var(--lh);
+  /* One continuous line grid runs behind the whole page, under text and
+     photos alike, so a photo never breaks the rhythm of the ruling. */
+  .paper-body {
+    flex: 1; min-height: 280px; cursor: text;
     background-image: repeating-linear-gradient(
       transparent, transparent calc(var(--lh) - 1px),
       var(--rule) calc(var(--lh) - 1px), var(--rule) var(--lh));
-    background-attachment: local;
   }
-  textarea.ruled {
-    width: 100%; flex: 1; min-height: 280px; border: none; outline: none; resize: none;
-    color: var(--ink); background-color: transparent; padding: 0;
+  .diary-type { font-family: var(--serif); font-size: 15.5px; line-height: var(--lh); }
+  textarea.blk {
+    display: block; width: 100%; border: none; outline: none; resize: none;
+    color: var(--ink); background: transparent; padding: 0; overflow: hidden;
   }
-  textarea.ruled::placeholder { color: var(--ink-soft); opacity: 0.6; font-style: italic; }
-  .page-text {
-    flex: 1; white-space: pre-wrap; word-break: break-word; color: var(--ink);
-    min-height: 280px;
+  textarea.blk::placeholder { color: var(--ink-soft); opacity: 0.6; font-style: italic; }
+  .para { white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+
+  /* a print taped onto the page, sitting in the flow of the writing */
+  .photo-block { position: relative; margin: 7px 0; }
+  .photo-block img {
+    display: block; width: 100%; height: auto; max-height: 360px;
+    object-fit: contain; background: var(--paper); border-radius: 2px;
+    box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--line), 0 3px 12px var(--shadow);
+    cursor: zoom-in;
   }
+  .photo-block .ph-x {
+    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
+    border-radius: 50%; border: none; cursor: pointer; opacity: 0;
+    background: rgba(20, 15, 10, 0.62); color: #fff; font-size: 11px; line-height: 1;
+    transition: opacity .15s;
+  }
+  .photo-block:hover .ph-x, .photo-block .ph-x:focus-visible { opacity: 1; }
   .page-empty {
     flex: 1; display: flex; align-items: center; justify-content: center;
     text-align: center; font-size: 13.5px; color: var(--ink-soft);
@@ -267,17 +281,6 @@
   }
   .moods button.sel { border-color: var(--me); background: var(--me-soft); }
   .mood-shown { font-size: 16px; }
-
-  .pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin-top: 12px; }
-  .pics img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; cursor: pointer; display: block; }
-  .thumbs { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
-  .thumbs .t { position: relative; }
-  .thumbs img { width: 58px; height: 58px; object-fit: cover; border-radius: 4px; display: block; }
-  .thumbs .x {
-    position: absolute; top: -6px; right: -6px; width: 19px; height: 19px;
-    border-radius: 50%; background: var(--ink); color: var(--paper); border: none;
-    font-size: 11px; line-height: 1; cursor: pointer;
-  }
 
   .page-actions {
     display: flex; align-items: center; gap: 8px;
@@ -300,7 +303,7 @@
     .book { grid-template-columns: 1fr; }
     .spine { height: 1px; background: var(--line); }
     .page { min-height: 0; padding: 16px 16px 18px; }
-    textarea.ruled, .page-text { min-height: 224px; }
+    .paper-body { min-height: 224px; }
     .page-empty { min-height: 120px; }
   }
 
@@ -363,10 +366,9 @@
           <div class="moods" id="moods"></div>
           <span class="time" id="myTime"></span>
         </div>
-        <textarea class="ruled" id="inText" placeholder="How was your day?"></textarea>
-        <div class="thumbs" id="thumbs"></div>
+        <div class="paper-body diary-type" id="editor"></div>
         <div class="page-actions">
-          <label class="btn-photo">📷 Photo
+          <label class="btn-photo" title="The photo lands where your cursor is">📷 Photo
             <input type="file" id="inPhoto" accept="image/*" multiple hidden>
           </label>
           <span class="saved-note" id="savedNote"></span>
@@ -395,6 +397,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const MOODS = ['😊','🥰','😴','😢','😤','🤒'];
+const PHOTO_MARK = '[[photo]]';   // marks where a photo sits inside the text
+const LH = 28;                    // one ruled line, matches --lh
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -404,7 +408,8 @@ const state = {
   date: '',          // the spread currently open
   entries: [],
   mood: '',
-  photos: [],        // mix of data URLs (new) and server filenames (kept)
+  blocks: [],        // the page as [{type:'text',value} | {type:'photo',src}]
+  caret: null,       // {i, pos} — where a new photo gets dropped in
   dirty: false,      // my page has unsaved edits
   composing: false,  // an IME composition is in flight in the textarea
   calMonth: null,    // first day of the month shown in the calendar
@@ -529,32 +534,143 @@ $('moods').onclick = (e) => {
   [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
   markDirty();
 };
-$('inText').oninput = markDirty;
-// An IME composition (Korean, Japanese, …) is an edit in progress even before
-// it commits, so hold off any refresh that would rewrite the textarea.
-$('inText').addEventListener('compositionstart', () => { state.composing = true; });
-$('inText').addEventListener('compositionend', () => { state.composing = false; markDirty(); });
 function markDirty() {
   state.dirty = true;
   $('savedNote').textContent = 'Unsaved';
   $('savedNote').classList.add('dirty');
 }
 
-$('inPhoto').onchange = async (e) => {
-  for (const file of [...e.target.files].slice(0, 10 - state.photos.length)) {
-    state.photos.push(await compress(file));
-  }
-  e.target.value = '';
-  renderThumbs(); markDirty();
-};
-function renderThumbs() {
-  $('thumbs').innerHTML = state.photos.map((p, i) =>
-    `<div class="t"><img src="${thumbSrc(p)}" alt=""><button class="x" data-i="${i}">✕</button></div>`).join('');
+// ---------- the page as blocks ----------
+// A page is stored as one string plus its photos; a [[photo]] marker in the
+// text says where each photo sits. Photos with no marker (pages written before
+// this) fall to the bottom, which is where they used to render.
+function parseBlocks(text, photos) {
+  const parts = String(text || '').split(/\n?\[\[photo\]\]\n?/);
+  const blocks = [];
+  let p = 0;
+  parts.forEach((t, i) => {
+    blocks.push({ type: 'text', value: t });
+    if (i < parts.length - 1 && p < photos.length) blocks.push({ type: 'photo', src: photos[p++] });
+  });
+  while (p < photos.length) blocks.push({ type: 'photo', src: photos[p++] });
+  if (!blocks.some((b) => b.type === 'text')) blocks.push({ type: 'text', value: '' });
+  return blocks;
 }
-$('thumbs').onclick = (e) => {
-  const b = e.target.closest('.x'); if (!b) return;
-  state.photos.splice(+b.dataset.i, 1); renderThumbs(); markDirty();
+function serializeBlocks(blocks) {
+  const photos = [];
+  const text = blocks.map((b) => {
+    if (b.type === 'photo') { photos.push(b.src); return PHOTO_MARK; }
+    return b.value;
+  }).join('\n');
+  return { text, photos };
+}
+
+// Snap each textarea to a whole number of ruled lines so the writing after a
+// photo lands back on the grid.
+function autoSize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.max(1, Math.ceil(ta.scrollHeight / LH)) * LH + 'px';
+}
+function photoCount() { return state.blocks.filter((b) => b.type === 'photo').length; }
+
+function renderEditor() {
+  const ed = $('editor');
+  ed.innerHTML = state.blocks.map((b, i) => b.type === 'photo'
+    ? `<figure class="photo-block" data-i="${i}">
+         <img src="${thumbSrc(b.src)}" data-full="${thumbSrc(b.src)}" alt="diary photo">
+         <button class="ph-x" data-rm="${i}" title="Remove photo">✕</button>
+       </figure>`
+    : `<textarea class="blk diary-type" data-i="${i}" rows="1"></textarea>`).join('');
+  ed.querySelectorAll('textarea.blk').forEach((ta) => {
+    const b = state.blocks[+ta.dataset.i];
+    ta.value = b.value;
+    if (+ta.dataset.i === 0) ta.placeholder = 'How was your day?';
+    autoSize(ta);
+  });
+  // an image can change the grid once it has loaded
+  ed.querySelectorAll('.photo-block img').forEach((img) => { img.onload = snapPhotos; });
+  snapPhotos();
+}
+// pad each photo so the text below it resumes on a ruled line
+function snapPhotos() {
+  $('editor').querySelectorAll('.photo-block').forEach((f) => {
+    f.style.marginBottom = '';
+    const over = f.offsetHeight % LH;
+    if (over) f.style.marginBottom = (LH - over) + 'px';
+  });
+}
+function syncFromDom() {
+  $('editor').querySelectorAll('textarea.blk').forEach((ta) => {
+    const b = state.blocks[+ta.dataset.i];
+    if (b && b.type === 'text') b.value = ta.value;
+  });
+}
+function rememberCaret(ta) { state.caret = { i: +ta.dataset.i, pos: ta.selectionStart }; }
+
+$('editor').addEventListener('input', (e) => {
+  if (!e.target.matches('textarea.blk')) return;
+  autoSize(e.target); rememberCaret(e.target); markDirty();
+});
+$('editor').addEventListener('compositionstart', () => { state.composing = true; });
+$('editor').addEventListener('compositionend', () => { state.composing = false; markDirty(); });
+['keyup', 'mouseup', 'focusout'].forEach((ev) =>
+  $('editor').addEventListener(ev, (e) => { if (e.target.matches('textarea.blk')) rememberCaret(e.target); }));
+
+$('editor').addEventListener('click', (e) => {
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { removePhoto(+rm.dataset.rm); return; }
+  const img = e.target.closest('img[data-full]');
+  if (img) { $('viewerImg').src = img.dataset.full; $('viewer').classList.add('on'); return; }
+  // clicking the blank ruled area below the writing continues the last paragraph
+  if (e.target === $('editor')) {
+    const tas = $('editor').querySelectorAll('textarea.blk');
+    const last = tas[tas.length - 1];
+    if (last) { last.focus(); last.setSelectionRange(last.value.length, last.value.length); rememberCaret(last); }
+  }
+});
+
+$('inPhoto').onchange = async (e) => {
+  const files = [...e.target.files].slice(0, 10 - photoCount());
+  e.target.value = '';
+  if (!files.length) return;
+  const shots = [];
+  for (const f of files) shots.push(await compress(f));
+  insertPhotos(shots);
 };
+
+// Photos drop in at the cursor, splitting that paragraph in two
+function insertPhotos(srcs) {
+  syncFromDom();   // the paragraph being split lives in the DOM until now
+  let at = state.caret;
+  if (!at || state.blocks[at.i]?.type !== 'text') {
+    const last = state.blocks.map((b, i) => [b, i]).filter(([b]) => b.type === 'text').pop();
+    at = last ? { i: last[1], pos: last[0].value.length } : null;
+  }
+  if (!at) { state.blocks.push({ type: 'text', value: '' }); at = { i: state.blocks.length - 1, pos: 0 }; }
+  const b = state.blocks[at.i];
+  const parts = [{ type: 'text', value: b.value.slice(0, at.pos) }];
+  srcs.forEach((src) => parts.push({ type: 'photo', src }));
+  parts.push({ type: 'text', value: b.value.slice(at.pos) });
+  state.blocks.splice(at.i, 1, ...parts);
+  renderEditor(); markDirty();
+  const next = $('editor').querySelector(`textarea.blk[data-i="${at.i + srcs.length + 1}"]`);
+  if (next) { next.focus(); next.setSelectionRange(0, 0); rememberCaret(next); }
+}
+
+function removePhoto(i) {
+  syncFromDom();
+  state.blocks.splice(i, 1);
+  for (let k = state.blocks.length - 1; k > 0; k--) {   // stitch the paragraphs back together
+    const a = state.blocks[k - 1], b = state.blocks[k];
+    if (a.type === 'text' && b.type === 'text') {
+      // rejoin exactly where the split happened, without leaving a blank line
+      const head = a.value.replace(/\n$/, ''), tail = b.value.replace(/^\n/, '');
+      a.value = head && tail ? head + '\n' + tail : head + tail;
+      state.blocks.splice(k, 1);
+    }
+  }
+  renderEditor(); markDirty();
+}
 
 // Compress photos to 1280px on the long side, JPEG quality 0.8, to keep uploads small
 function compress(file) {
@@ -575,8 +691,10 @@ function compress(file) {
 }
 
 async function savePage() {
-  const text = $('inText').value;
-  if (!text.trim() && !state.photos.length) { toast('Add some text or a photo'); return false; }
+  syncFromDom();
+  const { text, photos } = serializeBlocks(state.blocks);
+  const written = text.split(PHOTO_MARK).join('').trim();
+  if (!written && !photos.length) { toast('Add some text or a photo'); return false; }
   $('btnSave').disabled = true;
   try {
     // One page per person per day: the server updates my existing page for this date
@@ -584,7 +702,7 @@ async function savePage() {
       method: 'POST',
       body: JSON.stringify({
         author: state.name, text, date: state.date,
-        mood: state.mood, photos: state.photos,
+        mood: state.mood, photos,
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     });
@@ -608,6 +726,16 @@ function editedTag(e) {
   return `<button class="edited" data-hist="${e.id}">${label} ${fmtTime(last.at, last.tz)}</button>`;
 }
 
+// The partner's page, read only: the same paragraphs and photos, in the same
+// order they were written in.
+function readingBlocks(entry) {
+  return parseBlocks(entry.text, entry.photos).map((b) => b.type === 'photo'
+    ? `<figure class="photo-block">
+         <img loading="lazy" src="${photoUrl(b.src)}" data-full="${photoUrl(b.src)}" alt="diary photo">
+       </figure>`
+    : (b.value.trim() ? `<div class="para">${esc(b.value)}</div>` : '')).join('');
+}
+
 // ---------- rendering one spread ----------
 function renderSpread(keepDraft = false) {
   const { mine, yours } = pagesFor(state.date);
@@ -621,14 +749,13 @@ function renderSpread(keepDraft = false) {
   // Left page — a background refresh must never touch it while it is being
   // written in. Reassigning .value cancels an in-flight IME composition, which
   // drops the caret and swallows keystrokes mid-word when typing Korean.
-  const writing = state.dirty || state.composing || document.activeElement === $('inText');
+  const writing = state.dirty || state.composing || $('editor').contains(document.activeElement);
   if (!keepDraft || !writing) {
-    const text = mine ? mine.text : '';
-    if ($('inText').value !== text) $('inText').value = text;
+    state.blocks = parseBlocks(mine ? mine.text : '', mine ? mine.photos : []);
+    state.caret = null;
+    renderEditor();
     state.mood = mine ? (mine.mood || '') : '';
-    state.photos = mine ? [...mine.photos] : [];
     [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
-    renderThumbs();
     state.dirty = false;
     $('savedNote').classList.remove('dirty');
     $('savedNote').textContent = mine ? 'Saved' : '';
@@ -644,11 +771,7 @@ function renderSpread(keepDraft = false) {
          ${yours.mood ? `<span class="mood-shown">${yours.mood}</span>` : ''}
          <span class="time">${editedTag(yours)}</span>
        </div>
-       <div class="page-text ruled">${esc(yours.text)}</div>
-       ${yours.photos.length
-         ? `<div class="pics">${yours.photos.map((p) =>
-             `<img loading="lazy" src="${photoUrl(p)}" data-full="${photoUrl(p)}" alt="diary photo">`).join('')}</div>`
-         : ''}`
+       <div class="paper-body diary-type">${readingBlocks(yours)}</div>`
     : `<div class="page-head"><span class="who">${esc(who)}</span></div>
        <div class="page-empty">This page is still blank.<br>${esc(who)} hasn't written this day yet.</div>`;
 
