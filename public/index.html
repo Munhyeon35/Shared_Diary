@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#edf0f5">
+<meta name="theme-color" content="#f4eee1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Our Diary">
@@ -13,53 +13,53 @@
 <title>Our Diary</title>
 <style>
   :root {
-    --bg: #e9eef5;          /* desk the book sits on */
-    --paper: #ffffff;
-    --ink: #2e3339;
-    --ink-soft: #6b7480;
-    --rule: #e5eaf1;        /* ruled lines on the paper */
-    --line: #dee4ec;
+    --bg: #f4eee1;          /* desk the book sits on */
+    --paper: #fffefb;
+    --ink: #38332b;
+    --ink-soft: #74695c;
+    --rule: #ece2cf;        /* ruled lines on the paper */
+    --line: #e5dac6;
     --me: #d4402f;
-    --me-soft: #ffe9e5;
+    --me-soft: #ffe9e3;
     --you: #2a72b8;
-    --you-soft: #e7f1fb;
+    --you-soft: #e8f0fa;
     --today: #d4402f;
     --on-me: #ffffff;      /* text that sits on the accent */
-    --shadow: rgba(38, 50, 66, 0.13);
+    --shadow: rgba(122, 98, 66, 0.16);
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     --lh: 28px;             /* one ruled line */
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #14171c;
-      --paper: #1f242b;
-      --ink: #e9edf2;
-      --ink-soft: #99a3af;
-      --rule: #2c333c;
-      --line: #333b46;
-      --me: #ff7d6d;
-      --me-soft: #3b2521;
-      --you: #74ace4;
-      --you-soft: #1d2b3a;
-      --today: #ff7d6d;
-      --on-me: #1c2026;
+      --bg: #191713;
+      --paper: #262119;
+      --ink: #ece5d7;
+      --ink-soft: #a09587;
+      --rule: #342e24;
+      --line: #3a3329;
+      --me: #ff8a72;
+      --me-soft: #3d2a22;
+      --you: #7fb3e0;
+      --you-soft: #223141;
+      --today: #ff8a72;
+      --on-me: #241a15;
       --shadow: rgba(0, 0, 0, 0.55);
     }
   }
   :root[data-theme="dark"] {
-    --bg: #14171c;
-    --paper: #1f242b;
-    --ink: #e9edf2;
-    --ink-soft: #99a3af;
-    --rule: #2c333c;
-    --line: #333b46;
-    --me: #ff7d6d;
-    --me-soft: #3b2521;
-    --you: #74ace4;
-    --you-soft: #1d2b3a;
-    --today: #ff7d6d;
-    --on-me: #1c2026;
+    --bg: #191713;
+    --paper: #262119;
+    --ink: #ece5d7;
+    --ink-soft: #a09587;
+    --rule: #342e24;
+    --line: #3a3329;
+    --me: #ff8a72;
+    --me-soft: #3d2a22;
+    --you: #7fb3e0;
+    --you-soft: #223141;
+    --today: #ff8a72;
+    --on-me: #241a15;
     --shadow: rgba(0, 0, 0, 0.55);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -208,7 +208,7 @@
   #hist {
     position: fixed; inset: 0; z-index: 55; display: none;
     align-items: center; justify-content: center; padding: 20px;
-    background: rgba(20, 26, 34, 0.45);
+    background: rgba(38, 30, 20, 0.42);
   }
   #hist.on { display: flex; }
   .hist-box {
@@ -275,7 +275,7 @@
   .photo-block.dragging { opacity: 0.4; }
   .ph-btn {
     position: absolute; border: none; cursor: pointer; opacity: 0;
-    background: rgba(22, 28, 36, 0.62); color: #fff; line-height: 1;
+    background: rgba(40, 31, 20, 0.6); color: #fff; line-height: 1;
     border-radius: 50%; transition: opacity .15s; touch-action: none;
   }
   .ph-x { top: 6px; right: 6px; width: 24px; height: 24px; font-size: 11px; }
@@ -338,7 +338,7 @@
 
   /* ---- photo viewer & toast ---- */
   #viewer {
-    position: fixed; inset: 0; background: rgba(16, 20, 26, 0.94); z-index: 50;
+    position: fixed; inset: 0; background: rgba(28, 22, 15, 0.94); z-index: 50;
     display: none; align-items: center; justify-content: center;
   }
   #viewer.on { display: flex; }
@@ -346,7 +346,7 @@
   .viewer-save {
     position: absolute; left: 50%; transform: translateX(-50%);
     bottom: calc(22px + env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, 0.95); color: #23282f; text-decoration: none;
+    background: rgba(255, 254, 251, 0.96); color: #2c261e; text-decoration: none;
     font-family: var(--sans); font-size: 13.5px; font-weight: 700;
     padding: 11px 20px; border-radius: 22px; white-space: nowrap;
   }
