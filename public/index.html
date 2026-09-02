@@ -253,21 +253,46 @@
   textarea.blk::placeholder { color: var(--ink-soft); opacity: 0.6; font-style: italic; }
   .para { white-space: pre-wrap; word-break: break-word; color: var(--ink); }
 
-  /* a print taped onto the page, sitting in the flow of the writing */
-  .photo-block { position: relative; margin: 7px 0; }
+  /* a print taped onto the page, sitting in the flow of the writing.
+     The figure hugs the image so the mat and the handles follow the photo
+     itself, not a box around it. */
+  #editor { position: relative; }
+  .photo-block {
+    position: relative; width: fit-content; max-width: 100%;
+    margin: 7px auto; user-select: none;
+  }
   .photo-block img {
-    display: block; width: 100%; height: auto; max-height: 360px;
-    object-fit: contain; background: var(--paper); border-radius: 2px;
+    display: block; width: auto; height: auto;
+    max-width: 100%; max-height: 360px;
+    background: var(--paper); border-radius: 2px;
     box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--line), 0 3px 12px var(--shadow);
-    cursor: zoom-in;
+    cursor: zoom-in; -webkit-user-drag: none;
   }
-  .photo-block .ph-x {
-    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
-    border-radius: 50%; border: none; cursor: pointer; opacity: 0;
-    background: rgba(20, 15, 10, 0.62); color: #fff; font-size: 11px; line-height: 1;
-    transition: opacity .15s;
+  .photo-block.dragging { opacity: 0.4; }
+  .ph-btn {
+    position: absolute; border: none; cursor: pointer; opacity: 0;
+    background: rgba(20, 15, 10, 0.62); color: #fff; line-height: 1;
+    border-radius: 50%; transition: opacity .15s; touch-action: none;
   }
-  .photo-block:hover .ph-x, .photo-block .ph-x:focus-visible { opacity: 1; }
+  .ph-x { top: 6px; right: 6px; width: 24px; height: 24px; font-size: 11px; }
+  .ph-grip { top: 6px; left: 6px; width: 24px; height: 24px; font-size: 12px; cursor: grab; }
+  .ph-grip:active { cursor: grabbing; }
+  .ph-size {
+    right: -4px; bottom: -4px; width: 18px; height: 18px; cursor: nwse-resize;
+    background: var(--me); border: 2px solid var(--paper);
+  }
+  .photo-block:hover .ph-btn, .ph-btn:focus-visible { opacity: 1; }
+  @media (hover: none) { .photo-block .ph-btn { opacity: 0.85; } }
+
+  /* where a dragged photo will land */
+  .drop-line {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: var(--me); border-radius: 2px; pointer-events: none; z-index: 5;
+  }
+  .drop-line::before {
+    content: ''; position: absolute; left: -3px; top: -3px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--me);
+  }
   .page-empty {
     flex: 1; display: flex; align-items: center; justify-content: center;
     text-align: center; font-size: 13.5px; color: var(--ink-soft);
@@ -544,22 +569,31 @@ function markDirty() {
 // A page is stored as one string plus its photos; a [[photo]] marker in the
 // text says where each photo sits. Photos with no marker (pages written before
 // this) fall to the bottom, which is where they used to render.
+// A marker may carry the photo's width as a percentage of the column:
+// [[photo]] is full width, [[photo:60]] is 60%.
 function parseBlocks(text, photos) {
-  const parts = String(text || '').split(/\n?\[\[photo\]\]\n?/);
+  const re = /\n?\[\[photo(?::(\d{1,3}))?\]\]\n?/g;
+  const s = String(text || '');
   const blocks = [];
-  let p = 0;
-  parts.forEach((t, i) => {
-    blocks.push({ type: 'text', value: t });
-    if (i < parts.length - 1 && p < photos.length) blocks.push({ type: 'photo', src: photos[p++] });
-  });
-  while (p < photos.length) blocks.push({ type: 'photo', src: photos[p++] });
+  let last = 0, p = 0, m;
+  while ((m = re.exec(s)) !== null) {
+    blocks.push({ type: 'text', value: s.slice(last, m.index) });
+    if (p < photos.length) blocks.push({ type: 'photo', src: photos[p++], w: clampW(m[1] ? +m[1] : 100) });
+    last = m.index + m[0].length;
+  }
+  blocks.push({ type: 'text', value: s.slice(last) });
+  while (p < photos.length) blocks.push({ type: 'photo', src: photos[p++], w: 100 });
   if (!blocks.some((b) => b.type === 'text')) blocks.push({ type: 'text', value: '' });
   return blocks;
 }
+const clampW = (w) => Math.min(100, Math.max(20, Math.round(w) || 100));
 function serializeBlocks(blocks) {
   const photos = [];
   const text = blocks.map((b) => {
-    if (b.type === 'photo') { photos.push(b.src); return PHOTO_MARK; }
+    if (b.type === 'photo') {
+      photos.push(b.src);
+      return b.w && b.w !== 100 ? `[[photo:${clampW(b.w)}]]` : PHOTO_MARK;
+    }
     return b.value;
   }).join('\n');
   return { text, photos };
@@ -576,9 +610,11 @@ function photoCount() { return state.blocks.filter((b) => b.type === 'photo').le
 function renderEditor() {
   const ed = $('editor');
   ed.innerHTML = state.blocks.map((b, i) => b.type === 'photo'
-    ? `<figure class="photo-block" data-i="${i}">
+    ? `<figure class="photo-block" data-i="${i}" style="max-width:${clampW(b.w)}%">
          <img src="${thumbSrc(b.src)}" data-full="${thumbSrc(b.src)}" alt="diary photo">
-         <button class="ph-x" data-rm="${i}" title="Remove photo">✕</button>
+         <button class="ph-btn ph-grip" data-grip="${i}" title="Drag to move">✥</button>
+         <button class="ph-btn ph-x" data-rm="${i}" title="Remove photo">✕</button>
+         <button class="ph-btn ph-size" data-size="${i}" title="Drag to resize"></button>
        </figure>`
     : `<textarea class="blk diary-type" data-i="${i}" rows="1"></textarea>`).join('');
   ed.querySelectorAll('textarea.blk').forEach((ta) => {
@@ -629,6 +665,147 @@ $('editor').addEventListener('click', (e) => {
   }
 });
 
+// ---------- moving and resizing a photo ----------
+let drag = null, resize = null;
+
+// Where each paragraph of a textarea starts, measured with a mirror so that
+// wrapped lines are accounted for.
+function paragraphStarts(ta) {
+  const cs = getComputedStyle(ta);
+  const mirror = document.createElement('div');
+  mirror.style.cssText = `position:absolute;visibility:hidden;left:-9999px;top:0;
+    width:${ta.clientWidth}px;font:${cs.font};line-height:${cs.lineHeight};
+    white-space:pre-wrap;word-break:break-word;`;
+  document.body.appendChild(mirror);
+  const lines = ta.value.split('\n');
+  const spans = lines.map((l) => {
+    const s = document.createElement('span');
+    s.textContent = (l || ' ') + '\n';
+    mirror.appendChild(s);
+    return s;
+  });
+  const out = [];
+  let off = 0;
+  spans.forEach((s, i) => { out.push({ offset: off, top: s.offsetTop }); off += lines[i].length + 1; });
+  const end = { offset: ta.value.length, top: mirror.offsetHeight };
+  mirror.remove();
+  out.push(end);
+  return out;
+}
+
+// The gap the pointer is nearest: either between blocks, or between two
+// paragraphs inside a block of writing.
+function dropTarget(clientY) {
+  const ed = $('editor');
+  const kids = [...ed.children].filter((el) => el.matches('textarea.blk, .photo-block'));
+  const edTop = ed.getBoundingClientRect().top;
+  for (const el of kids) {
+    const r = el.getBoundingClientRect();
+    if (clientY < r.top || clientY > r.bottom) continue;
+    if (el.matches('textarea.blk')) {
+      let best = null, bd = Infinity;
+      for (const m of paragraphStarts(el)) {
+        const d = Math.abs(r.top + m.top - clientY);
+        if (d < bd) { bd = d; best = m; }
+      }
+      return { i: +el.dataset.i, offset: best.offset, y: r.top + best.top - edTop };
+    }
+    const after = clientY > r.top + r.height / 2;
+    return { i: +el.dataset.i, after, y: (after ? r.bottom : r.top) - edTop };
+  }
+  const last = kids[kids.length - 1];
+  if (!last) return null;
+  const r = last.getBoundingClientRect();
+  return clientY < r.top
+    ? { i: +kids[0].dataset.i, after: false, y: kids[0].getBoundingClientRect().top - edTop }
+    : { i: +last.dataset.i, after: true, y: r.bottom - edTop };
+}
+function showDropLine(t) {
+  let line = $('editor').querySelector('.drop-line');
+  if (!line) { line = document.createElement('div'); line.className = 'drop-line'; $('editor').appendChild(line); }
+  line.style.top = t.y + 'px';
+}
+function hideDropLine() { $('editor').querySelector('.drop-line')?.remove(); }
+
+$('editor').addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('[data-grip]');
+  if (grip) {
+    e.preventDefault();
+    const fig = grip.closest('.photo-block');
+    drag = { block: state.blocks[+grip.dataset.grip], fig, target: null };
+    fig.classList.add('dragging');
+    grip.setPointerCapture(e.pointerId);
+    return;
+  }
+  const sz = e.target.closest('[data-size]');
+  if (sz) {
+    e.preventDefault();
+    const fig = sz.closest('.photo-block');
+    resize = {
+      block: state.blocks[+sz.dataset.size], fig,
+      startX: e.clientX, startW: fig.getBoundingClientRect().width,
+      col: $('editor').clientWidth,
+    };
+    sz.setPointerCapture(e.pointerId);
+  }
+});
+
+$('editor').addEventListener('pointermove', (e) => {
+  if (resize) {
+    const px = resize.startW + (e.clientX - resize.startX);
+    resize.w = clampW((px / resize.col) * 100);
+    resize.fig.style.maxWidth = resize.w + '%';
+    return;
+  }
+  if (drag) {
+    drag.target = dropTarget(e.clientY);
+    if (drag.target) showDropLine(drag.target);
+  }
+});
+
+function endResize() {
+  if (!resize) return;
+  if (resize.w && resize.w !== resize.block.w) {
+    syncFromDom();
+    resize.block.w = resize.w;
+    markDirty();
+  }
+  resize = null;
+  snapPhotos();
+}
+function endDrag() {
+  if (!drag) return;
+  const { block, target } = drag;
+  drag.fig.classList.remove('dragging');
+  hideDropLine();
+  drag = null;
+  if (!target) return;
+  syncFromDom();
+  // Mark the landing spot first, so the offsets just measured stay valid while
+  // the photo is lifted out of its old place.
+  const spot = { type: 'spot' };
+  if (target.offset != null) {
+    const b = state.blocks[target.i];
+    if (!b || b.type !== 'text') return;
+    state.blocks.splice(target.i, 1,
+      { type: 'text', value: b.value.slice(0, target.offset) },
+      spot,
+      { type: 'text', value: b.value.slice(target.offset) });
+  } else {
+    state.blocks.splice(target.after ? target.i + 1 : target.i, 0, spot);
+  }
+  const from = state.blocks.indexOf(block);
+  if (from !== -1) state.blocks.splice(from, 1);
+  state.blocks.splice(state.blocks.indexOf(spot), 1, block);
+  stitchText();
+  renderEditor(); markDirty();
+}
+$('editor').addEventListener('pointerup', () => { endResize(); endDrag(); });
+$('editor').addEventListener('pointercancel', () => {
+  resize = null;
+  if (drag) { drag.fig.classList.remove('dragging'); hideDropLine(); drag = null; }
+});
+
 $('inPhoto').onchange = async (e) => {
   const files = [...e.target.files].slice(0, 10 - photoCount());
   e.target.value = '';
@@ -657,18 +834,22 @@ function insertPhotos(srcs) {
   if (next) { next.focus(); next.setSelectionRange(0, 0); rememberCaret(next); }
 }
 
-function removePhoto(i) {
-  syncFromDom();
-  state.blocks.splice(i, 1);
-  for (let k = state.blocks.length - 1; k > 0; k--) {   // stitch the paragraphs back together
+// Two paragraphs that end up next to each other were split by a photo that has
+// since moved or gone; rejoin them exactly where the split was.
+function stitchText() {
+  for (let k = state.blocks.length - 1; k > 0; k--) {
     const a = state.blocks[k - 1], b = state.blocks[k];
     if (a.type === 'text' && b.type === 'text') {
-      // rejoin exactly where the split happened, without leaving a blank line
       const head = a.value.replace(/\n$/, ''), tail = b.value.replace(/^\n/, '');
       a.value = head && tail ? head + '\n' + tail : head + tail;
       state.blocks.splice(k, 1);
     }
   }
+}
+function removePhoto(i) {
+  syncFromDom();
+  state.blocks.splice(i, 1);
+  stitchText();
   renderEditor(); markDirty();
 }
 
@@ -730,7 +911,7 @@ function editedTag(e) {
 // order they were written in.
 function readingBlocks(entry) {
   return parseBlocks(entry.text, entry.photos).map((b) => b.type === 'photo'
-    ? `<figure class="photo-block">
+    ? `<figure class="photo-block" style="max-width:${clampW(b.w)}%">
          <img loading="lazy" src="${photoUrl(b.src)}" data-full="${photoUrl(b.src)}" alt="diary photo">
        </figure>`
     : (b.value.trim() ? `<div class="para">${esc(b.value)}</div>` : '')).join('');
