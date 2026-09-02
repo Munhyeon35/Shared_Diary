@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#faf7f2">
+<meta name="theme-color" content="#edf0f5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Our Diary">
@@ -13,51 +13,54 @@
 <title>Our Diary</title>
 <style>
   :root {
-    --bg: #eae2d6;          /* desk the book sits on */
-    --paper: #fffdf8;
-    --ink: #3a342d;
-    --ink-soft: #8c8378;
-    --rule: #e6dccb;        /* ruled lines on the paper */
-    --line: #e2d9cb;
-    --me: #c9603f;
-    --me-soft: #f7e7e0;
-    --you: #4a7ba8;
-    --you-soft: #e6eef6;
-    --today: #c9603f;
-    --shadow: rgba(80, 62, 42, 0.18);
+    --bg: #e9eef5;          /* desk the book sits on */
+    --paper: #ffffff;
+    --ink: #2e3339;
+    --ink-soft: #6b7480;
+    --rule: #e5eaf1;        /* ruled lines on the paper */
+    --line: #dee4ec;
+    --me: #d4402f;
+    --me-soft: #ffe9e5;
+    --you: #2a72b8;
+    --you-soft: #e7f1fb;
+    --today: #d4402f;
+    --on-me: #ffffff;      /* text that sits on the accent */
+    --shadow: rgba(38, 50, 66, 0.13);
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     --lh: 28px;             /* one ruled line */
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #17150f;
-      --paper: #262218;
-      --ink: #e9e2d3;
-      --ink-soft: #a2988a;
-      --rule: #35301f;
-      --line: #3a3427;
-      --me: #e08a68;
-      --me-soft: #3a2a22;
-      --you: #7fa8d0;
-      --you-soft: #22303c;
-      --today: #e08a68;
-      --shadow: rgba(0, 0, 0, 0.5);
+      --bg: #14171c;
+      --paper: #1f242b;
+      --ink: #e9edf2;
+      --ink-soft: #99a3af;
+      --rule: #2c333c;
+      --line: #333b46;
+      --me: #ff7d6d;
+      --me-soft: #3b2521;
+      --you: #74ace4;
+      --you-soft: #1d2b3a;
+      --today: #ff7d6d;
+      --on-me: #1c2026;
+      --shadow: rgba(0, 0, 0, 0.55);
     }
   }
   :root[data-theme="dark"] {
-    --bg: #17150f;
-    --paper: #262218;
-    --ink: #e9e2d3;
-    --ink-soft: #a2988a;
-    --rule: #35301f;
-    --line: #3a3427;
-    --me: #e08a68;
-    --me-soft: #3a2a22;
-    --you: #7fa8d0;
-    --you-soft: #22303c;
-    --today: #e08a68;
-    --shadow: rgba(0, 0, 0, 0.5);
+    --bg: #14171c;
+    --paper: #1f242b;
+    --ink: #e9edf2;
+    --ink-soft: #99a3af;
+    --rule: #2c333c;
+    --line: #333b46;
+    --me: #ff7d6d;
+    --me-soft: #3b2521;
+    --you: #74ace4;
+    --you-soft: #1d2b3a;
+    --today: #ff7d6d;
+    --on-me: #1c2026;
+    --shadow: rgba(0, 0, 0, 0.55);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -96,10 +99,10 @@
     color: var(--ink); outline: none;
   }
   .setup input:focus { border-color: var(--me); }
-  .setup .err { color: #c0492b; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .setup .err { color: var(--me); font-size: 13px; margin-top: 12px; min-height: 18px; }
   button.primary {
     width: 100%; margin-top: 16px; padding: 13px; font-size: 15.5px; font-weight: 700;
-    background: var(--me); color: #fff; border: none; border-radius: 8px; cursor: pointer;
+    background: var(--me); color: var(--on-me); border: none; border-radius: 8px; cursor: pointer;
   }
   button.primary:active { transform: scale(0.985); }
   button.primary:disabled { opacity: 0.5; }
@@ -125,8 +128,8 @@
   .date-btn .caret { font-size: 10px; color: var(--ink-soft); }
   .today-chip {
     font-family: var(--sans); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
-    text-transform: uppercase; color: var(--me); background: var(--me-soft);
-    padding: 2px 7px; border-radius: 20px;
+    text-transform: uppercase; color: var(--on-me); background: var(--me);
+    padding: 3px 8px; border-radius: 20px;
   }
   .spread-status {
     text-align: center; font-size: 12px; color: var(--ink-soft);
@@ -159,13 +162,13 @@
   }
   .cal-grid button:hover:not(:disabled) { background: var(--bg); }
   .cal-grid button:disabled { color: var(--ink-soft); opacity: 0.35; cursor: default; }
-  .cal-grid button.sel { background: var(--me); color: #fff; }
+  .cal-grid button.sel { background: var(--me); color: var(--on-me); }
   .cal-grid button.today:not(.sel) { outline: 1.5px solid var(--today); }
   .cal-grid .dots { display: flex; gap: 2px; height: 4px; }
   .cal-grid .dots i { width: 4px; height: 4px; border-radius: 50%; display: block; }
   .cal-grid .dots i.m { background: var(--me); }
   .cal-grid .dots i.y { background: var(--you); }
-  .cal-grid button.sel .dots i { background: #fff; }
+  .cal-grid button.sel .dots i { background: var(--on-me); }
   .cal-legend {
     display: flex; gap: 12px; justify-content: center; margin-top: 10px;
     font-size: 10.5px; color: var(--ink-soft);
@@ -205,7 +208,7 @@
   #hist {
     position: fixed; inset: 0; z-index: 55; display: none;
     align-items: center; justify-content: center; padding: 20px;
-    background: rgba(24, 18, 12, 0.45);
+    background: rgba(20, 26, 34, 0.45);
   }
   #hist.on { display: flex; }
   .hist-box {
@@ -272,7 +275,7 @@
   .photo-block.dragging { opacity: 0.4; }
   .ph-btn {
     position: absolute; border: none; cursor: pointer; opacity: 0;
-    background: rgba(20, 15, 10, 0.62); color: #fff; line-height: 1;
+    background: rgba(22, 28, 36, 0.62); color: #fff; line-height: 1;
     border-radius: 50%; transition: opacity .15s; touch-action: none;
   }
   .ph-x { top: 6px; right: 6px; width: 24px; height: 24px; font-size: 11px; }
@@ -319,7 +322,7 @@
   }
   .btn-save {
     margin-left: auto; padding: 9px 20px; font-size: 14px; font-weight: 700;
-    background: var(--me); color: #fff; border: none; border-radius: 7px; cursor: pointer;
+    background: var(--me); color: var(--on-me); border: none; border-radius: 7px; cursor: pointer;
   }
   .btn-save:disabled { opacity: 0.45; }
   .saved-note { font-size: 11.5px; color: var(--ink-soft); }
@@ -335,7 +338,7 @@
 
   /* ---- photo viewer & toast ---- */
   #viewer {
-    position: fixed; inset: 0; background: rgba(18, 14, 9, 0.93); z-index: 50;
+    position: fixed; inset: 0; background: rgba(16, 20, 26, 0.94); z-index: 50;
     display: none; align-items: center; justify-content: center;
   }
   #viewer.on { display: flex; }
@@ -343,7 +346,7 @@
   .viewer-save {
     position: absolute; left: 50%; transform: translateX(-50%);
     bottom: calc(22px + env(safe-area-inset-bottom));
-    background: rgba(255, 253, 248, 0.94); color: #2a251f; text-decoration: none;
+    background: rgba(255, 255, 255, 0.95); color: #23282f; text-decoration: none;
     font-family: var(--sans); font-size: 13.5px; font-weight: 700;
     padding: 11px 20px; border-radius: 22px; white-space: nowrap;
   }
