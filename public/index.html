@@ -293,10 +293,6 @@
     background: var(--me); color: #fff; border: none; border-radius: 7px; cursor: pointer;
   }
   .btn-save:disabled { opacity: 0.45; }
-  .btn-del {
-    font-size: 11.5px; color: var(--ink-soft); background: none;
-    border: none; cursor: pointer; padding: 6px;
-  }
   .saved-note { font-size: 11.5px; color: var(--ink-soft); }
   .saved-note.dirty { color: var(--me); font-weight: 700; }
 
@@ -373,7 +369,6 @@
           <label class="btn-photo">📷 Photo
             <input type="file" id="inPhoto" accept="image/*" multiple hidden>
           </label>
-          <button class="btn-del hidden" id="btnDel">Clear this page</button>
           <span class="saved-note" id="savedNote"></span>
           <button class="btn-save" id="btnSave">Save</button>
         </div>
@@ -411,6 +406,7 @@ const state = {
   mood: '',
   photos: [],        // mix of data URLs (new) and server filenames (kept)
   dirty: false,      // my page has unsaved edits
+  composing: false,  // an IME composition is in flight in the textarea
   calMonth: null,    // first day of the month shown in the calendar
 };
 
@@ -534,6 +530,10 @@ $('moods').onclick = (e) => {
   markDirty();
 };
 $('inText').oninput = markDirty;
+// An IME composition (Korean, Japanese, …) is an edit in progress even before
+// it commits, so hold off any refresh that would rewrite the textarea.
+$('inText').addEventListener('compositionstart', () => { state.composing = true; });
+$('inText').addEventListener('compositionend', () => { state.composing = false; markDirty(); });
 function markDirty() {
   state.dirty = true;
   $('savedNote').textContent = 'Unsaved';
@@ -598,17 +598,6 @@ async function savePage() {
 }
 $('btnSave').onclick = savePage;
 
-$('btnDel').onclick = async () => {
-  const { mine } = pagesFor(state.date);
-  if (!mine || !confirm('Clear your page for this day?')) return;
-  try {
-    await api('/api/entries/' + mine.id, { method: 'DELETE' });
-    state.dirty = false;
-    await refresh();
-    renderSpread();
-  } catch (e) { toast('Delete failed: ' + e.message); }
-};
-
 // The page head shows only the last save; the label says whether that save
 // was the original writing or a later edit. Click opens the full log.
 function editedTag(e) {
@@ -629,9 +618,13 @@ function renderSpread(keepDraft = false) {
   $('btnNext').disabled = state.date >= localDate();
   $('myName').textContent = state.name;
 
-  // left page — never clobber what I'm typing
-  if (!keepDraft || !state.dirty) {
-    $('inText').value = mine ? mine.text : '';
+  // Left page — a background refresh must never touch it while it is being
+  // written in. Reassigning .value cancels an in-flight IME composition, which
+  // drops the caret and swallows keystrokes mid-word when typing Korean.
+  const writing = state.dirty || state.composing || document.activeElement === $('inText');
+  if (!keepDraft || !writing) {
+    const text = mine ? mine.text : '';
+    if ($('inText').value !== text) $('inText').value = text;
     state.mood = mine ? (mine.mood || '') : '';
     state.photos = mine ? [...mine.photos] : [];
     [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
@@ -641,7 +634,6 @@ function renderSpread(keepDraft = false) {
     $('savedNote').textContent = mine ? 'Saved' : '';
   }
   $('btnSave').textContent = mine ? 'Update' : 'Save';
-  $('btnDel').classList.toggle('hidden', !mine);
   $('myTime').innerHTML = mine ? editedTag(mine) : '';
 
   // right page — read only
