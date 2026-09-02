@@ -81,16 +81,21 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
-function serveFile(res, filePath) {
+function serveFile(res, filePath, downloadAs) {
   fs.readFile(filePath, (err, buf) => {
     if (err) return json(res, 404, { error: 'not_found' });
-    res.writeHead(200, {
+    const head = {
       'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream',
       'Cache-Control': filePath.includes('photos') ? 'private, max-age=31536000' : 'no-cache',
-    });
+    };
+    // Saving a photo: iOS Safari ignores the link's download attribute, so the
+    // header is what actually makes it save instead of navigate.
+    if (downloadAs) head['Content-Disposition'] = `attachment; filename="${downloadAs}"`;
+    res.writeHead(200, head);
     res.end(buf);
   });
 }
+const safeFilename = (s) => String(s || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 80);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -188,7 +193,9 @@ const server = http.createServer(async (req, res) => {
       const name = path.basename(p); // prevent path traversal
       // Photos are also gated behind the couple code, checked via query parameter
       if (url.searchParams.get('code') !== COUPLE_CODE) return json(res, 401, { error: 'unauthorized' });
-      return serveFile(res, path.join(PHOTO_DIR, name));
+      const asName = url.searchParams.get('download');
+      return serveFile(res, path.join(PHOTO_DIR, name),
+        asName ? (safeFilename(asName) || name) : null);
     }
     if (p === '/' || p === '/index.html') return serveFile(res, path.join(ROOT, 'public', 'index.html'));
     const staticFile = path.join(ROOT, 'public', path.basename(p));
