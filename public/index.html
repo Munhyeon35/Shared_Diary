@@ -25,6 +25,8 @@
     --you-soft: #e8f0fa;
     --today: #d4402f;
     --on-me: #ffffff;      /* text that sits on the accent */
+    --tape-a: rgba(246, 232, 205, 0.86);   /* washi tape holding a print down */
+    --tape-b: rgba(236, 216, 180, 0.80);
     --shadow: rgba(122, 98, 66, 0.16);
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
@@ -44,6 +46,8 @@
       --you-soft: #223141;
       --today: #ff8a72;
       --on-me: #241a15;
+      --tape-a: rgba(122, 104, 76, 0.72);
+      --tape-b: rgba(96, 81, 58, 0.66);
       --shadow: rgba(0, 0, 0, 0.55);
     }
   }
@@ -60,6 +64,8 @@
     --you-soft: #223141;
     --today: #ff8a72;
     --on-me: #241a15;
+    --tape-a: rgba(122, 104, 76, 0.72);
+    --tape-b: rgba(96, 81, 58, 0.66);
     --shadow: rgba(0, 0, 0, 0.55);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -263,8 +269,12 @@
   /* Width is set per photo and is a share of the column, so a photo scales
      with the page and can never spill past its edge. */
   .photo-block {
-    position: relative; max-width: 100%;
+    position: relative;
+    /* room for the corners to swing out when the print is tilted */
+    max-width: calc(100% - 16px);
     margin: 7px auto; user-select: none;
+    transform: rotate(var(--tilt, 0deg));
+    transition: transform .18s ease;
   }
   .photo-block img {
     display: block; width: 100%; height: auto;
@@ -272,6 +282,23 @@
     box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--line), 0 3px 12px var(--shadow);
     cursor: zoom-in; -webkit-user-drag: none;
   }
+  /* a strip of washi tape holding the print to the page */
+  .photo-block::before {
+    content: ''; position: absolute; z-index: 2; pointer-events: none;
+    top: -10px; left: 50%; width: 84px; height: 23px;
+    transform: translateX(-50%) rotate(var(--tape, -1.6deg));
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(255, 255, 255, 0.16) 0 3px, rgba(255, 255, 255, 0) 3px 7px),
+      linear-gradient(180deg, var(--tape-a), var(--tape-b));
+    box-shadow: 0 1px 3px rgba(90, 72, 48, 0.22);
+    /* torn, slightly ragged ends rather than a clean rectangle */
+    clip-path: polygon(
+      3% 0%, 97% 2%, 100% 22%, 97% 48%, 100% 74%, 96% 100%,
+      4% 98%, 0% 76%, 3% 50%, 0% 24%);
+    opacity: 0.85;
+  }
+  .photo-block.dragging::before { opacity: 0.5; }
   .photo-block.dragging { opacity: 0.4; }
   .ph-btn {
     position: absolute; border: none; cursor: pointer; opacity: 0;
@@ -631,7 +658,8 @@ function renderEditor() {
   const ed = $('editor');
   ed.innerHTML = state.blocks.map((b, i) => b.type === 'photo'
     ? `<figure class="photo-block" data-i="${i}" style="width:${clampW(b.w)}%">
-         <img src="${thumbSrc(b.src)}" data-full="${thumbSrc(b.src)}" data-name="${photoName(i)}" alt="diary photo">
+         <img src="${thumbSrc(b.src)}" data-full="${thumbSrc(b.src)}" data-name="${photoName(i)}"
+              data-key="${esc(String(b.src).slice(-32))}" alt="diary photo">
          <button class="ph-btn ph-grip" data-grip="${i}" title="Drag to move">✥</button>
          <button class="ph-btn ph-x" data-rm="${i}" title="Remove photo">✕</button>
          <button class="ph-btn ph-size" data-size="${i}" title="Drag to resize"></button>
@@ -648,13 +676,40 @@ function renderEditor() {
   snapPhotos();
 }
 // pad each photo so the text below it resumes on a ruled line
-function snapPhotos() {
-  $('editor').querySelectorAll('.photo-block').forEach((f) => {
-    f.style.marginBottom = '';
-    const over = f.offsetHeight % LH;
-    if (over) f.style.marginBottom = (LH - over) + 'px';
+// A print's tilt is derived from the photo itself, never rolled fresh, so it
+// stays put across reloads and looks the same on both people's screens.
+function hashOf(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+const SLACK = 8;   // px of room either side, matching the block's max-width
+function tiltOf(key, spread) { return ((hashOf(key) % 101) / 100 - 0.5) * 2 * spread; }
+
+// Tilt each print, then pad it back onto the ruled grid. A rotated box is
+// taller and wider than its layout box, so the angle is capped to the room
+// available and the overhang is paid for in margin.
+function dressPhotos(root) {
+  (root || $('editor')).querySelectorAll('.photo-block').forEach((f) => {
+    const img = f.querySelector('img');
+    const key = (img && (img.dataset.key || img.getAttribute('src') || '')).slice(-32);
+    const w = f.offsetWidth, h = f.offsetHeight;
+    if (!w || !h) return;
+    // the widest angle whose corners still fit the slack on either side
+    const room = Math.min(1, (2 * SLACK) / Math.max(h, 1));
+    const cap = Math.min(2.2, (Math.asin(room) * 180) / Math.PI);
+    const deg = Math.max(-cap, Math.min(cap, tiltOf(key, 2.2)));
+    f.style.setProperty('--tilt', deg.toFixed(2) + 'deg');
+    f.style.setProperty('--tape', (tiltOf(key + 't', 5) - deg).toFixed(2) + 'deg');
+    const rad = Math.abs(deg) * Math.PI / 180;
+    const grow = (w * Math.sin(rad) + h * (1 - Math.cos(rad))) / 2;
+    const pad = Math.ceil(grow) + 10;   // 10px also clears the tape at the top
+    f.style.marginTop = pad + 'px';
+    const used = h + pad + Math.ceil(grow);
+    f.style.marginBottom = Math.ceil(grow) + ((LH - (used % LH)) % LH) + 'px';
   });
 }
+const snapPhotos = () => dressPhotos($('editor'));
 function syncFromDom() {
   $('editor').querySelectorAll('textarea.blk').forEach((ta) => {
     const b = state.blocks[+ta.dataset.i];
@@ -943,7 +998,8 @@ function readingBlocks(entry) {
   return parseBlocks(entry.text, entry.photos).map((b) => b.type === 'photo'
     ? `<figure class="photo-block" style="width:${clampW(b.w)}%">
          <img loading="lazy" src="${photoUrl(b.src)}" data-full="${photoUrl(b.src)}"
-              data-name="${esc(entry.author + '-' + entry.date)}" alt="diary photo">
+              data-name="${esc(entry.author + '-' + entry.date)}"
+              data-key="${esc(String(b.src).slice(-32))}" alt="diary photo">
        </figure>`
     : (b.value.trim() ? `<div class="para">${esc(b.value)}</div>` : '')).join('');
 }
@@ -986,6 +1042,12 @@ function renderSpread(keepDraft = false) {
        <div class="paper-body diary-type">${readingBlocks(yours)}</div>`
     : `<div class="page-head"><span class="who">${esc(who)}</span></div>
        <div class="page-empty">This page is still blank.<br>${esc(who)} hasn't written this day yet.</div>`;
+
+  // their prints get the same tilt and tape, once each image knows its size
+  dressPhotos($('pageYours'));
+  $('pageYours').querySelectorAll('.photo-block img').forEach((img) => {
+    img.onload = () => dressPhotos($('pageYours'));
+  });
 
   // soft nudge — never a gate
   const st = $('spreadStatus');
