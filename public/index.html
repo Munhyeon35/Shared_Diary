@@ -247,11 +247,19 @@
   /* The sheet starts a page tall and grows downward as it fills. Vertical
      positions are measured in width units, so growing it never shifts what
      is already laid out. */
+  /* The sheet keeps a page's shape and scrolls within itself. Vertical
+     positions are measured in width units, so the roll of paper inside can
+     lengthen without shifting anything already laid out. */
   .paper-body {
-    position: relative; overflow: hidden;
-    width: 100%; min-height: 240px;  /* a floor until the height is measured */
+    position: relative; width: 100%;
+    aspect-ratio: 72 / 100;
+    overflow-y: auto; overflow-x: hidden;
+    scrollbar-gutter: stable;        /* both pages reserve it, so both stay equal */
+    scrollbar-width: thin;
     container-type: inline-size;
+    overscroll-behavior: contain;    /* running out of page must not scroll the window */
   }
+  .sheet-inner { position: relative; width: 100%; }
   #editor.empty::after {
     content: 'Photos, text and stickers — put them anywhere';
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -694,9 +702,10 @@ function itemHtml(it, i, side) {
 // The left page is mine to lay out; the right one I may only add stickers to.
 function paintPage(host, items, side) {
   if (!host) return;
-  host.innerHTML = items.map((it, i) => itemHtml(it, i, side)).join('');
-  host.dataset.side = side;
+  host.innerHTML = `<div class="sheet-inner" data-side="${side}">`
+    + items.map((it, i) => itemHtml(it, i, side)).join('') + '</div>';
 }
+const innerOf = (host) => host && host.querySelector('.sheet-inner');
 function renderMine() {
   paintPage($('editor'), state.items, 'mine');
   $('editor').classList.toggle('empty', !state.items.length);
@@ -706,23 +715,22 @@ function renderMine() {
 // The sheet is as tall as it needs to be, and both facing pages match so the
 // book never looks lopsided. Measured after painting, since a photo's height
 // is only known once the browser has laid it out.
-const SHEET_TALL = 100 / 0.72;     // starting height, in width units
-function sheetHeight(host) {
-  if (!host) return 0;
-  const w = host.clientWidth;
-  if (!w) return 0;
-  let low = 0;
-  const top = host.getBoundingClientRect().top;
-  host.querySelectorAll('.ci').forEach((el) => {
-    const r = el.getBoundingClientRect();
-    low = Math.max(low, r.bottom - top);
-  });
-  return Math.max(w * (SHEET_TALL / 100), low + w * 0.06);
-}
+const SHEET_TALL = 100 / 0.72;     // a page's height, in width units
 function sizeSheets() {
-  const hosts = [$('editor'), $('pageYours').querySelector('.paper-body')].filter(Boolean);
-  const tall = Math.max(...hosts.map(sheetHeight), 0);
-  if (tall) hosts.forEach((h) => { h.style.height = Math.round(tall) + 'px'; });
+  for (const host of [$('editor'), $('pageYours').querySelector('.paper-body')]) {
+    const inner = innerOf(host);
+    if (!inner) continue;
+    const w = host.clientWidth;
+    if (!w) continue;
+    let low = 0;
+    const top = inner.getBoundingClientRect().top;
+    inner.querySelectorAll('.ci').forEach((el) => {
+      low = Math.max(low, el.getBoundingClientRect().bottom - top);
+    });
+    // always leave a little blank paper past the last thing, so there is
+    // somewhere to drag to
+    inner.style.height = Math.round(Math.max(w * (SHEET_TALL / 100), low + w * 0.25)) + 'px';
+  }
 }
 addEventListener('resize', () => { sizeSheets(); });
 
@@ -861,7 +869,7 @@ function commit(side) {
 document.addEventListener('pointerdown', (e) => {
   const el = e.target.closest('.ci');
   if (!el) { if (!e.target.closest('.ci-btn')) deselect(); return; }
-  const host = el.parentElement;
+  const host = el.closest('.sheet-inner');
   const side = host.dataset.side;
   const list = listFor(side);
   const i = +el.dataset.i;
@@ -915,6 +923,7 @@ document.addEventListener('pointermove', (e) => {
     act.it.y = Math.min(560, Math.max(2, ((e.clientY - act.dy - box.top) / box.width) * 100));
     act.el.style.left = act.it.x + '%';
     act.el.style.top = `calc(${act.it.y} * 1cqw)`;
+    creepEdge(e.clientY);
     sizeSheets();
   } else if (act.mode === 'turn') {
     const cx = box.left + (act.it.x / 100) * box.width;
@@ -930,6 +939,17 @@ document.addEventListener('pointermove', (e) => {
     act.el.style.setProperty('--w', act.it.w.toFixed(1));
   }
 });
+
+// Dragging against the top or bottom edge scrolls the sheet, so a thing can
+// be carried past what is currently in view.
+function creepEdge(clientY) {
+  const sheet = act && act.host.parentElement;
+  if (!sheet) return;
+  const r = sheet.getBoundingClientRect();
+  const edge = 44;
+  if (clientY > r.bottom - edge) sheet.scrollTop += Math.min(18, clientY - (r.bottom - edge));
+  else if (clientY < r.top + edge) sheet.scrollTop -= Math.min(18, (r.top + edge) - clientY);
+}
 
 document.addEventListener('pointerup', () => {
   if (!act) return;
