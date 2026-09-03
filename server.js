@@ -97,6 +97,70 @@ function serveFile(res, filePath, downloadAs) {
 }
 const safeFilename = (s) => String(s || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 80);
 
+// ---- a page is a set of things laid on it ----
+// Every item carries where it sits (x, y as a share of the page), how it is
+// turned and how big it is, so the same page looks the same on any screen.
+const num = (v, lo, hi, dflt) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
+};
+
+// Pages written before the canvas stored a run of text plus a photo list and a
+// separate decor array. Lay those out top to bottom so nothing is lost.
+function itemsOf(entry) {
+  if (Array.isArray(entry.items)) return entry.items;
+  const laid = [];
+  const parts = String(entry.text || '').split(/\n?\[\[photo(?::\d{1,3})?\]\]\n?/);
+  const photos = entry.photos || [];
+  let p = 0;
+  parts.forEach((t, i) => {
+    if (t.trim()) laid.push({ k: 'text', v: t.trim(), w: 76, fs: 3.2 });
+    if (i < parts.length - 1 && p < photos.length) laid.push({ k: 'photo', src: photos[p++], w: 40 });
+  });
+  while (p < photos.length) laid.push({ k: 'photo', src: photos[p++], w: 40 });
+  // spread them down the page so nothing lands off the edge
+  const step = laid.length > 1 ? 62 / (laid.length - 1) : 0;
+  const items = laid.map((it, i) => ({
+    ...it, x: 50, y: laid.length > 1 ? 20 + i * step : 40, r: 0, s: 1, by: entry.author,
+  }));
+  for (const d of entry.decor || []) {
+    items.push({ k: d.k, v: d.v, x: d.x, y: d.y, r: d.r, s: d.s, by: d.by || entry.author });
+  }
+  return items;
+}
+
+// Validate what a client sends, and turn any freshly pasted photo into a file.
+function cleanItems(raw, by, entryId, was, allEntries) {
+  const known = new Set();
+  for (const e of allEntries) for (const it of itemsOf(e)) if (it.k === 'photo') known.add(it.src);
+  const out = [];
+  for (const d of (Array.isArray(raw) ? raw : []).slice(0, 80)) {
+    if (!d || typeof d !== 'object') continue;
+    const base = {
+      x: num(d.x, -20, 120, 50), y: num(d.y, -20, 120, 50),
+      r: num(d.r, -180, 180, 0), s: num(d.s, 0.2, 6, 1),
+      by: String(d.by || by).slice(0, 30),
+    };
+    if (d.k === 'text') {
+      const v = String(d.v || '').slice(0, 8000);
+      if (!v.trim()) continue;
+      out.push({ k: 'text', v, ...base, w: num(d.w, 8, 110, 80), fs: num(d.fs, 1.5, 12, 3.4) });
+    } else if (d.k === 'photo') {
+      const src = String(d.src || '');
+      if (src.startsWith('data:')) {
+        const name = savePhoto(src, entryId, crypto.randomBytes(4).toString('hex'));
+        if (name) out.push({ k: 'photo', src: name, ...base, w: num(d.w, 5, 110, 50) });
+      } else if (known.has(src)) {                 // a photo already on some page
+        out.push({ k: 'photo', src, ...base, w: num(d.w, 5, 110, 50) });
+      }
+    } else if (d.k === 'tape' || d.k === 'sticker') {
+      const v = String(d.v || '').slice(0, 16);
+      if (v) out.push({ k: d.k, v, ...base });
+    }
+  }
+  return out;
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
@@ -121,54 +185,51 @@ const server = http.createServer(async (req, res) => {
       // Writing daily is encouraged in the UI instead, never enforced here.
       const entries = loadEntries();
       entries.sort((a, b) => (a.date === b.date ? b.createdAt.localeCompare(a.createdAt) : b.date.localeCompare(a.date)));
-      return json(res, 200, { entries });
+      // Pages written before the canvas are laid out here, so the migration
+      // lives in one place and every client sees the same page.
+      return json(res, 200, { entries: entries.map((e) => ({ ...e, items: itemsOf(e) })) });
     }
 
     if (p === '/api/entries' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req)).toString());
-      const text = String(body.text || '').slice(0, 20000);
       const author = String(body.author || '').slice(0, 30);
       const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : new Date().toISOString().slice(0, 10);
-      if (!author || (!text.trim() && !(body.photos || []).length)) {
-        return json(res, 400, { error: 'empty' });
-      }
+      if (!author) return json(res, 400, { error: 'who' });
+
       // One page per person per day: a repeat POST for the same author+date
       // updates that page instead of adding another entry.
       const entries = loadEntries();
       const existing = entries.find((e) => e.author === author && e.date === date);
       const id = existing ? existing.id : crypto.randomBytes(8).toString('hex');
-      const photos = [];
-      (body.photos || []).slice(0, 10).forEach((item, i) => {
-        if (typeof item !== 'string') return;
-        if (item.startsWith('data:')) {
-          // new photo: save under a unique suffix so edits never collide
-          const name = savePhoto(item, id, crypto.randomBytes(4).toString('hex'));
-          if (name) photos.push(name);
-        } else if (existing && existing.photos.includes(item)) {
-          photos.push(item); // kept photo from the previous version of this page
-        }
-      });
+      const was = existing ? itemsOf(existing) : [];
+
+      // A page is a set of things laid on it. Everything the owner put down
+      // is replaced wholesale; stickers their partner left are kept, since
+      // those are not the owner's to rewrite.
+      const kept = was.filter((it) => it.by && it.by !== author);
+      const mine = cleanItems(body.items, author, id, was, entries);
+      const items = mine.concat(kept);
+      if (!items.length) return json(res, 400, { error: 'empty' });
+
+      const photos = items.filter((it) => it.k === 'photo').map((it) => it.src);
       if (existing) {
-        existing.photos.filter((n) => !photos.includes(n))
+        (existing.photos || []).filter((n) => !photos.includes(n))
           .forEach((n) => fs.rm(path.join(PHOTO_DIR, n), () => {}));
       }
       const now = new Date().toISOString();
       const mood = String(body.mood || '').slice(0, 8);
       const tz = String(body.tz || '').slice(0, 50); // author's time zone (to show "their time" on the partner's screen)
+      const text = items.filter((it) => it.k === 'text').map((it) => it.v).join('\n');
       // Edit log: one stamp per save that actually changed something, so
       // "edited" is always backed by a visible when. edits[0] is the writing.
       const changed = !existing
-        || existing.text !== text
-        || existing.mood !== mood
-        || existing.photos.join() !== photos.join();
+        || JSON.stringify(was.filter((it) => !it.by || it.by === author)) !== JSON.stringify(mine)
+        || existing.mood !== mood;
       const edits = (existing && Array.isArray(existing.edits) ? existing.edits
         : existing ? [{ at: existing.createdAt, tz: existing.tz }] : []).slice(-99);
       if (changed) edits.push({ at: now, tz });
       const entry = {
-        id, author, date, text, photos, mood, tz, edits,
-        // decorations are placed and saved on their own; rewriting the page
-        // must not sweep them off it
-        decor: existing && Array.isArray(existing.decor) ? existing.decor : [],
+        id, author, date, items, photos, text, mood, tz, edits,
         createdAt: existing ? existing.createdAt : now,
         updatedAt: changed ? now : (existing ? existing.updatedAt : now),
       };
@@ -178,37 +239,32 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { entry });
     }
 
-    // Decorations live on the page they are stuck to, so a sticker left on
-    // your partner's page is saved with their entry, tagged with who put it
-    // there. You may tape and sticker your own page; on theirs, stickers only.
-    const decorMatch = /^\/api\/entries\/([a-f0-9]{16})\/decor$/.exec(p);
-    if (decorMatch && req.method === 'PUT') {
+    // A sticker left on your partner's page belongs to their page, so it is
+    // saved with their entry. Only stickers, and only your own: the server
+    // rebuilds the page from what its owner put down plus your stickers, so a
+    // request can never rewrite or remove someone else's things.
+    const stickMatch = /^\/api\/entries\/([a-f0-9]{16})\/stickers$/.exec(p);
+    if (stickMatch && req.method === 'PUT') {
       const body = JSON.parse((await readBody(req)).toString() || '{}');
-      const entries = loadEntries();
-      const entry = entries.find((e) => e.id === decorMatch[1]);
-      if (!entry) return json(res, 404, { error: 'not_found' });
       const by = String(body.by || '').slice(0, 30);
       if (!by) return json(res, 400, { error: 'who' });
-      const num = (v, lo, hi, dflt) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
-      };
-      const clean = [];
-      for (const d of (Array.isArray(body.decor) ? body.decor : []).slice(0, 60)) {
-        const kind = d && d.k === 'tape' ? 'tape' : 'sticker';
-        if (kind === 'tape' && entry.author !== by) continue; // tape only on your own page
-        const value = String((d && d.v) || '').slice(0, 16);
-        if (!value) continue;
-        clean.push({
-          k: kind, v: value,
-          x: num(d.x, 0, 100, 50), y: num(d.y, 0, 100, 50),
-          r: num(d.r, -180, 180, 0), s: num(d.s, 0.3, 4, 1),
-          by: String(d.by || by).slice(0, 30),
-        });
-      }
-      entry.decor = clean;
+      const entries = loadEntries();
+      const entry = entries.find((e) => e.id === stickMatch[1]);
+      if (!entry) return json(res, 404, { error: 'not_found' });
+
+      const theirs = itemsOf(entry).filter((it) => (it.by || entry.author) !== by);
+      const mine = (Array.isArray(body.stickers) ? body.stickers : [])
+        .slice(0, 40)
+        .filter((d) => d && d.k === 'sticker' && String(d.v || '').trim())
+        .map((d) => ({
+          k: 'sticker', v: String(d.v).slice(0, 16),
+          x: num(d.x, -20, 120, 50), y: num(d.y, -20, 120, 50),
+          r: num(d.r, -180, 180, 0), s: num(d.s, 0.2, 6, 1), by,
+        }));
+      entry.items = theirs.concat(mine);
+      entry.photos = entry.items.filter((it) => it.k === 'photo').map((it) => it.src);
       saveEntries(entries);
-      return json(res, 200, { decor: clean });
+      return json(res, 200, { items: entry.items });
     }
 
     const delMatch = /^\/api\/entries\/([a-f0-9]{16})$/.exec(p);

@@ -17,7 +17,6 @@
     --paper: #fffefb;
     --ink: #38332b;
     --ink-soft: #74695c;
-    --rule: #ece2cf;        /* ruled lines on the paper */
     --line: #e5dac6;
     --me: #d4402f;
     --me-soft: #ffe9e3;
@@ -30,7 +29,6 @@
     --shadow: rgba(122, 98, 66, 0.16);
     --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-    --lh: 28px;             /* one ruled line */
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -38,7 +36,6 @@
       --paper: #262119;
       --ink: #ece5d7;
       --ink-soft: #a09587;
-      --rule: #342e24;
       --line: #3a3329;
       --me: #ff8a72;
       --me-soft: #3d2a22;
@@ -56,7 +53,6 @@
     --paper: #262119;
     --ink: #ece5d7;
     --ink-soft: #a09587;
-    --rule: #342e24;
     --line: #3a3329;
     --me: #ff8a72;
     --me-soft: #3d2a22;
@@ -246,141 +242,74 @@
     border-radius: 7px; cursor: pointer;
   }
 
-  /* One continuous line grid runs behind the whole page, under text and
-     photos alike, so a photo never breaks the rhythm of the ruling. */
+  /* A blank page. It keeps a fixed shape and is its own container, so a
+     layout made on a laptop lands identically on a phone. */
   .paper-body {
-    flex: 1; min-height: 504px; cursor: text;   /* 18 ruled lines */
-    background-image: repeating-linear-gradient(
-      transparent, transparent calc(var(--lh) - 1px),
-      var(--rule) calc(var(--lh) - 1px), var(--rule) var(--lh));
+    position: relative; flex: 1; overflow: hidden;
+    aspect-ratio: 72 / 100;
+    container-type: inline-size;
   }
-  .diary-type { font-family: var(--serif); font-size: 15.5px; line-height: var(--lh); }
-  textarea.blk {
-    display: block; width: 100%; border: none; outline: none; resize: none;
-    color: var(--ink); background: transparent; padding: 0; overflow: hidden;
+  #editor.empty::after {
+    content: 'Photos, text and stickers — put them anywhere';
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft); font-size: 13px; font-style: italic; opacity: .65; pointer-events: none;
   }
-  textarea.blk::placeholder { color: var(--ink-soft); opacity: 0.6; font-style: italic; }
-  .para { white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+  .diary-type { font-family: var(--serif); }
 
-  /* a print taped onto the page, sitting in the flow of the writing.
-     The figure hugs the image so the mat and the handles follow the photo
-     itself, not a box around it. */
-  #editor { position: relative; }
-  /* Width is set per photo and is a share of the column, so a photo scales
-     with the page and can never spill past its edge. */
-  .photo-block {
-    position: relative;
-    /* room for the corners to swing out when the print is tilted */
-    max-width: calc(100% - 16px);
-    margin: 7px auto; user-select: none;
-    transform: rotate(var(--tilt, 0deg));
-    transition: transform .18s ease;
-  }
-  .photo-block img {
-    display: block; width: 100%; height: auto;
-    background: var(--paper); border-radius: 2px;
-    box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--line), 0 3px 12px var(--shadow);
-    cursor: zoom-in; -webkit-user-drag: none;
-  }
-  /* ---- what the two of you stick on the page ---- */
-  .paper-body { position: relative; }
-  .decor-layer {
-    position: absolute; inset: 0; z-index: 4; overflow: hidden;
-    pointer-events: none;                 /* the writing underneath stays reachable */
-  }
-  .decor-item {
-    position: absolute; pointer-events: auto; touch-action: none;
+  /* ---- anything laid on a page ---- */
+  .ci {
+    position: absolute; touch-action: none; user-select: none;
     transform: translate(-50%, -50%) rotate(var(--r, 0deg)) scale(var(--s, 1));
-    cursor: grab; user-select: none; line-height: 1;
+    cursor: grab;
   }
-  .decor-item:active { cursor: grabbing; }
-  /* the look lives on an inner element, so the tape's torn edge never
-     clips the handles that sit on the item */
-  .decor-face { display: block; }
-  .decor-face.sticker { font-size: 34px; filter: drop-shadow(0 2px 3px var(--shadow)); }
-  .decor-face.tape {
-    width: 92px; height: 24px;
+  .ci.locked { cursor: default; }
+  .ci:active { cursor: grabbing; }
+  .ci-k-text, .ci-k-photo { width: calc(var(--w, 60) * 1%); }
+  .ci-face { display: block; }
+  .ci-text {
+    font-family: var(--serif); line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+    color: var(--ink); font-size: max(12px, calc(var(--fs, 3.4) * 1cqw));
+  }
+  textarea.ci-text {
+    width: 100%; border: none; outline: none; resize: none; overflow: hidden;
+    background: color-mix(in srgb, var(--paper) 82%, transparent);
+    padding: 0; font-family: var(--serif); cursor: text;
+  }
+  .ci-photo {
+    width: 100%; height: auto; border-radius: 2px; background: var(--paper);
+    box-shadow: 0 0 0 4px var(--paper), 0 0 0 5px var(--line), 0 3px 12px var(--shadow);
+    -webkit-user-drag: none;
+  }
+  .ci-sticker { font-size: 7cqw; filter: drop-shadow(0 2px 3px var(--shadow)); }
+  .ci-tape {
+    width: 20cqw; height: 5.2cqw;
     background:
       repeating-linear-gradient(90deg,
         rgba(255, 255, 255, 0.16) 0 3px, rgba(255, 255, 255, 0) 3px 7px),
       linear-gradient(180deg, var(--tape-a), var(--tape-b));
-    box-shadow: 0 1px 3px rgba(90, 72, 48, 0.2);
-    /* torn ends rather than a clean rectangle */
+    box-shadow: 0 1px 3px rgba(90, 72, 48, 0.2); opacity: 0.9;
     clip-path: polygon(3% 0%, 97% 2%, 100% 22%, 97% 48%, 100% 74%,
                        96% 100%, 4% 98%, 0% 76%, 3% 50%, 0% 24%);
-    opacity: 0.9;
   }
-  .decor-face.tape.pink { --tape-a: rgba(246, 205, 208, .86); --tape-b: rgba(234, 178, 184, .8); }
-  .decor-face.tape.mint { --tape-a: rgba(203, 233, 219, .86); --tape-b: rgba(174, 214, 197, .8); }
-  .decor-face.tape.sky  { --tape-a: rgba(203, 224, 243, .86); --tape-b: rgba(174, 203, 231, .8); }
-  .decor-item.sel { outline: 1.5px dashed var(--me); outline-offset: 5px; }
+  .ci-tape.pink { --tape-a: rgba(246, 205, 208, .86); --tape-b: rgba(234, 178, 184, .8); }
+  .ci-tape.mint { --tape-a: rgba(203, 233, 219, .86); --tape-b: rgba(174, 214, 197, .8); }
+  .ci-tape.sky  { --tape-a: rgba(203, 224, 243, .86); --tape-b: rgba(174, 203, 231, .8); }
+  .ci.sel { outline: 1.5px dashed var(--me); outline-offset: 5px; }
+  .ci.editing { outline: 1.5px solid var(--me); outline-offset: 5px; z-index: 9; }
   /* handles keep their size and stay upright however the item is turned */
-  .decor-btn {
+  .ci-btn {
     position: absolute; width: 22px; height: 22px; border-radius: 50%;
     border: none; cursor: pointer; color: #fff; font-size: 11px; line-height: 1;
-    background: rgba(40, 31, 20, 0.72); display: none; touch-action: none;
+    background: rgba(40, 31, 20, 0.72); display: none; touch-action: none; z-index: 2;
     transform: rotate(calc(-1 * var(--r, 0deg))) scale(calc(1 / var(--s, 1)));
   }
-  .decor-item.sel .decor-btn { display: block; }
-  .decor-del { top: -13px; right: -13px; }
-  .decor-rs  { bottom: -13px; right: -13px; cursor: nwse-resize; background: var(--me); }
+  .ci.sel .ci-btn, .ci.editing .ci-btn { display: block; }
+  .ci-del { top: -13px; right: -13px; }
+  .ci-rs  { bottom: -13px; right: -13px; cursor: nwse-resize; background: var(--me); }
+  .ci-wd  { top: 50%; right: -13px; margin-top: -11px; cursor: ew-resize; background: var(--you); }
 
-  /* ---- the tray you pick decorations from ---- */
-  .tray {
-    position: fixed; z-index: 40; width: 268px; padding: 12px;
-    background: var(--paper); border: 1px solid var(--line);
-    border-radius: 10px; box-shadow: 0 12px 34px var(--shadow);
-  }
-  .tray h4 {
-    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--ink-soft); margin: 2px 0 7px;
-  }
-  .tray .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
-  .tray .grid button {
-    aspect-ratio: 1; border: none; background: none; cursor: pointer;
-    font-size: 19px; border-radius: 6px; line-height: 1;
-  }
-  .tray .grid button:hover { background: var(--bg); }
-  .tray .tapes { display: flex; gap: 7px; margin-top: 4px; }
-  .tray .tapes button {
-    flex: 1; height: 22px; border: none; cursor: pointer; border-radius: 3px;
-    clip-path: polygon(4% 0%, 96% 3%, 100% 30%, 97% 70%, 96% 100%, 4% 97%, 0% 70%, 3% 30%);
-  }
-  .btn-decor {
-    display: flex; align-items: center; gap: 5px; font-size: 13px;
-    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
-    background: var(--bg); color: var(--ink); cursor: pointer;
-  }
-  .head-decor {
-    margin-left: auto; font-size: 15px; line-height: 1; padding: 3px 6px;
-    background: none; border: none; cursor: pointer; border-radius: 6px; opacity: 0.55;
-  }
-  .head-decor:hover { opacity: 1; background: var(--bg); }
-  .photo-block.dragging { opacity: 0.4; }
-  .ph-btn {
-    position: absolute; border: none; cursor: pointer; opacity: 0;
-    background: rgba(40, 31, 20, 0.6); color: #fff; line-height: 1;
-    border-radius: 50%; transition: opacity .15s; touch-action: none;
-  }
-  .ph-x { top: 6px; right: 6px; width: 24px; height: 24px; font-size: 11px; }
-  .ph-grip { top: 6px; left: 6px; width: 24px; height: 24px; font-size: 12px; cursor: grab; }
-  .ph-grip:active { cursor: grabbing; }
-  .ph-size {
-    right: -4px; bottom: -4px; width: 18px; height: 18px; cursor: nwse-resize;
-    background: var(--me); border: 2px solid var(--paper);
-  }
-  .photo-block:hover .ph-btn, .ph-btn:focus-visible { opacity: 1; }
-  @media (hover: none) { .photo-block .ph-btn { opacity: 0.85; } }
 
-  /* where a dragged photo will land */
-  .drop-line {
-    position: absolute; left: 0; right: 0; height: 2px;
-    background: var(--me); border-radius: 2px; pointer-events: none; z-index: 5;
-  }
-  .drop-line::before {
-    content: ''; position: absolute; left: -3px; top: -3px;
-    width: 8px; height: 8px; border-radius: 50%; background: var(--me);
-  }
+
   .page-empty {
     flex: 1; display: flex; align-items: center; justify-content: center;
     text-align: center; font-size: 13.5px; color: var(--ink-soft);
@@ -523,8 +452,6 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const MOODS = ['😊','🥰','😴','😢','😤','🤒'];
-const PHOTO_MARK = '[[photo]]';   // marks where a photo sits inside the text
-const LH = 28;                    // one ruled line, matches --lh
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const WDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -534,10 +461,9 @@ const state = {
   date: '',          // the spread currently open
   entries: [],
   mood: '',
-  blocks: [],        // the page as [{type:'text',value} | {type:'photo',src}]
-  caret: null,       // {i, pos} — where a new photo gets dropped in
-  dirty: false,      // my page has unsaved edits
-  composing: false,  // an IME composition is in flight in the textarea
+  items: [],         // my page for the open date, as things laid on it
+  editing: null,     // index of the text box being written in
+  dirty: false,      // my page has unsaved changes
   calMonth: null,    // first day of the month shown in the calendar
 };
 
@@ -660,515 +586,265 @@ $('moods').onclick = (e) => {
   [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
   markDirty();
 };
+// ---------- a page is a set of things laid on it ----------
+// Every item knows where it sits (x, y as a share of the page), how it is
+// turned and how big it is. The page keeps a fixed shape, so a page laid out
+// on a laptop looks the same on a phone.
+const STICKERS = ['❤️','💕','⭐','✨','🌸','🌿','☀️','🌙','☁️','🍀','🔥','🎈',
+                  '🎂','☕','🍜','🍺','🐱','🐶','😊','🥰','😂','😴','👍','✈️'];
+const TAPES = ['cream', 'pink', 'mint', 'sky'];
+const itemsOf = (entry) => (entry && Array.isArray(entry.items) ? entry.items : []);
+const entryById = (id) => state.entries.find((e) => e.id === id);
+const canTouch = (it, side) =>
+  side === 'mine' || (it.k === 'sticker' && (it.by || '') === state.name);
+
 function markDirty() {
   state.dirty = true;
   $('savedNote').textContent = 'Unsaved';
   $('savedNote').classList.add('dirty');
 }
 
-// ---------- the page as blocks ----------
-// A page is stored as one string plus its photos; a [[photo]] marker in the
-// text says where each photo sits. Photos with no marker (pages written before
-// this) fall to the bottom, which is where they used to render.
-// A marker may carry the photo's width as a percentage of the column:
-// [[photo]] is full width, [[photo:60]] is 60%.
-function parseBlocks(text, photos) {
-  const re = /\n?\[\[photo(?::(\d{1,3}))?\]\]\n?/g;
-  const s = String(text || '');
-  const blocks = [];
-  let last = 0, p = 0, m;
-  while ((m = re.exec(s)) !== null) {
-    blocks.push({ type: 'text', value: s.slice(last, m.index) });
-    if (p < photos.length) blocks.push({ type: 'photo', src: photos[p++], w: clampW(m[1] ? +m[1] : 100) });
-    last = m.index + m[0].length;
-  }
-  blocks.push({ type: 'text', value: s.slice(last) });
-  while (p < photos.length) blocks.push({ type: 'photo', src: photos[p++], w: 100 });
-  if (!blocks.some((b) => b.type === 'text')) blocks.push({ type: 'text', value: '' });
-  return blocks;
-}
-const clampW = (w) => Math.min(100, Math.max(20, Math.round(w) || 100));
-function serializeBlocks(blocks) {
-  const photos = [];
-  const text = blocks.map((b) => {
-    if (b.type === 'photo') {
-      photos.push(b.src);
-      return b.w && b.w !== 100 ? `[[photo:${clampW(b.w)}]]` : PHOTO_MARK;
-    }
-    return b.value;
-  }).join('\n');
-  return { text, photos };
-}
-
-// Snap each textarea to a whole number of ruled lines so the writing after a
-// photo lands back on the grid.
-function autoSize(ta) {
-  ta.style.height = 'auto';
-  ta.style.height = Math.max(1, Math.ceil(ta.scrollHeight / LH)) * LH + 'px';
-}
-function photoCount() { return state.blocks.filter((b) => b.type === 'photo').length; }
-// what a saved copy of this photo gets called
-function photoName(i) {
-  const ord = state.blocks.slice(0, i).filter((b) => b.type === 'photo').length + 1;
-  return esc(`${state.name}-${state.date}-${ord}`);
-}
-
-function renderEditor() {
-  const ed = $('editor');
-  ed.innerHTML = state.blocks.map((b, i) => b.type === 'photo'
-    ? `<figure class="photo-block" data-i="${i}" style="width:${clampW(b.w)}%">
-         <img src="${thumbSrc(b.src)}" data-full="${thumbSrc(b.src)}" data-name="${photoName(i)}"
-              data-key="${esc(String(b.src).slice(-32))}" alt="diary photo">
-         <button class="ph-btn ph-grip" data-grip="${i}" title="Drag to move">✥</button>
-         <button class="ph-btn ph-x" data-rm="${i}" title="Remove photo">✕</button>
-         <button class="ph-btn ph-size" data-size="${i}" title="Drag to resize"></button>
-       </figure>`
-    : `<textarea class="blk diary-type" data-i="${i}" rows="1"></textarea>`).join('');
-  ed.querySelectorAll('textarea.blk').forEach((ta) => {
-    const b = state.blocks[+ta.dataset.i];
-    ta.value = b.value;
-    if (+ta.dataset.i === 0) ta.placeholder = 'How was your day?';
-    autoSize(ta);
-  });
-  // an image can change the grid once it has loaded
-  ed.querySelectorAll('.photo-block img').forEach((img) => { img.onload = snapPhotos; });
-  snapPhotos();
-  renderDecor();   // rebuilding the editor takes the decoration layer with it
-}
-// pad each photo so the text below it resumes on a ruled line
-// A print's tilt is derived from the photo itself, never rolled fresh, so it
-// stays put across reloads and looks the same on both people's screens.
-function hashOf(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-const SLACK = 8;   // px of room either side, matching the block's max-width
-function tiltOf(key, spread) { return ((hashOf(key) % 101) / 100 - 0.5) * 2 * spread; }
-
-// Tilt each print, then pad it back onto the ruled grid. A rotated box is
-// taller and wider than its layout box, so the angle is capped to the room
-// available and the overhang is paid for in margin.
-function dressPhotos(root) {
-  (root || $('editor')).querySelectorAll('.photo-block').forEach((f) => {
-    const img = f.querySelector('img');
-    const key = (img && (img.dataset.key || img.getAttribute('src') || '')).slice(-32);
-    const w = f.offsetWidth, h = f.offsetHeight;
-    if (!w || !h) return;
-    // the widest angle whose corners still fit the slack on either side
-    const room = Math.min(1, (2 * SLACK) / Math.max(h, 1));
-    const cap = Math.min(2.2, (Math.asin(room) * 180) / Math.PI);
-    const deg = Math.max(-cap, Math.min(cap, tiltOf(key, 2.2)));
-    f.style.setProperty('--tilt', deg.toFixed(2) + 'deg');
-    f.style.setProperty('--tape', (tiltOf(key + 't', 5) - deg).toFixed(2) + 'deg');
-    const rad = Math.abs(deg) * Math.PI / 180;
-    const grow = (w * Math.sin(rad) + h * (1 - Math.cos(rad))) / 2;
-    const pad = Math.ceil(grow) + 10;   // 10px also clears the tape at the top
-    f.style.marginTop = pad + 'px';
-    const used = h + pad + Math.ceil(grow);
-    f.style.marginBottom = Math.ceil(grow) + ((LH - (used % LH)) % LH) + 'px';
-  });
-}
-const snapPhotos = () => dressPhotos($('editor'));
-function syncFromDom() {
-  $('editor').querySelectorAll('textarea.blk').forEach((ta) => {
-    const b = state.blocks[+ta.dataset.i];
-    if (b && b.type === 'text') b.value = ta.value;
-  });
-}
-function rememberCaret(ta) { state.caret = { i: +ta.dataset.i, pos: ta.selectionStart }; }
-
-$('editor').addEventListener('input', (e) => {
-  if (!e.target.matches('textarea.blk')) return;
-  autoSize(e.target); rememberCaret(e.target); markDirty();
-});
-$('editor').addEventListener('compositionstart', () => { state.composing = true; });
-$('editor').addEventListener('compositionend', () => { state.composing = false; markDirty(); });
-['keyup', 'mouseup', 'focusout'].forEach((ev) =>
-  $('editor').addEventListener(ev, (e) => { if (e.target.matches('textarea.blk')) rememberCaret(e.target); }));
-
-$('editor').addEventListener('click', (e) => {
-  const rm = e.target.closest('[data-rm]');
-  if (rm) { removePhoto(+rm.dataset.rm); return; }
-  const img = e.target.closest('img[data-full]');
-  if (img) { openViewer(img); return; }
-  // clicking the blank ruled area below the writing continues the last paragraph
-  if (e.target === $('editor')) {
-    const tas = $('editor').querySelectorAll('textarea.blk');
-    const last = tas[tas.length - 1];
-    if (last) { last.focus(); last.setSelectionRange(last.value.length, last.value.length); rememberCaret(last); }
-  }
-});
-
-// ---------- what the two of you stick on the page ----------
-// A decoration belongs to the page it is stuck to, so a sticker left on your
-// partner's page is saved with their entry. Tape is yours alone; stickers can
-// go on either page.
-const STICKERS = ['❤️','💕','⭐','✨','🌸','🌿','☀️','🌙','☁️','🍀','🔥','🎈',
-                  '🎂','☕','🍜','🍺','🐱','🐶','😊','🥰','😂','😴','👍','✈️'];
-const TAPES = ['cream', 'pink', 'mint', 'sky'];
-
-const decorOf = (entry) => (entry && Array.isArray(entry.decor) ? entry.decor : []);
-const entryById = (id) => state.entries.find((e) => e.id === id);
-
-function decorItemHtml(d, i) {
-  const face = d.k === 'tape'
-    ? `<i class="decor-face tape ${esc(d.v)}"></i>`
-    : `<i class="decor-face sticker">${esc(d.v)}</i>`;
-  return `<div class="decor-item" data-i="${i}" title="by ${esc(d.by || '')}"
-       style="left:${d.x}%; top:${d.y}%; --r:${d.r}deg; --s:${d.s}">${face}
-       <button class="decor-btn decor-del" data-del="${i}" title="Remove">✕</button>
-       <button class="decor-btn decor-rs" data-rs="${i}" title="Turn and resize"></button>
+function itemHtml(it, i, side) {
+  const st = [`left:${it.x}%`, `top:${it.y}%`, `--r:${it.r || 0}deg`, `--s:${it.s || 1}`];
+  if (it.w != null) st.push(`--w:${it.w}`);
+  if (it.fs != null) st.push(`--fs:${it.fs}`);
+  let face;
+  if (it.k === 'text') face = `<div class="ci-face ci-text">${esc(it.v || '')}</div>`;
+  else if (it.k === 'photo') face =
+    `<img class="ci-face ci-photo" src="${thumbSrc(it.src)}" data-full="${thumbSrc(it.src)}"
+          data-name="${esc(state.date + '-' + (i + 1))}" alt="diary photo">`;
+  else if (it.k === 'tape') face = `<i class="ci-face ci-tape ${esc(it.v)}"></i>`;
+  else face = `<i class="ci-face ci-sticker">${esc(it.v)}</i>`;
+  const mine = canTouch(it, side);
+  return `<div class="ci ci-k-${it.k}${mine ? '' : ' locked'}" data-i="${i}" style="${st.join(';')}"
+       ${it.by ? `title="by ${esc(it.by)}"` : ''}>${face}
+       ${mine ? `<button class="ci-btn ci-del" title="Remove">✕</button>
+                 <button class="ci-btn ci-rs" title="Turn and resize"></button>
+                 ${it.k === 'text' ? '<button class="ci-btn ci-wd" title="Width"></button>' : ''}` : ''}
      </div>`;
 }
-function paintLayer(host, entry, isMine) {
+
+// The left page is mine to lay out; the right one I may only add stickers to.
+function paintPage(host, items, side) {
   if (!host) return;
-  host.querySelector(':scope > .decor-layer')?.remove();
-  if (!entry) return;
-  const layer = document.createElement('div');
-  layer.className = 'decor-layer';
-  layer.dataset.entry = entry.id;
-  layer.dataset.mine = isMine ? '1' : '';
-  layer.innerHTML = decorOf(entry).map(decorItemHtml).join('');
-  host.appendChild(layer);
+  host.innerHTML = items.map((it, i) => itemHtml(it, i, side)).join('');
+  host.dataset.side = side;
 }
-function renderDecor() {
-  const { mine, yours } = pagesFor(state.date);
-  paintLayer($('editor'), mine, true);
-  paintLayer($('pageYours').querySelector('.paper-body'), yours, false);
+function renderMine() {
+  paintPage($('editor'), state.items, 'mine');
+  $('editor').classList.toggle('empty', !state.items.length);
 }
-async function saveDecor(layer) {
-  const entry = entryById(layer.dataset.entry);
-  if (!entry) return;
+function renderTheirs() {
+  const { yours } = pagesFor(state.date);
+  const host = $('pageYours').querySelector('.paper-body');
+  if (host && yours) { paintPage(host, itemsOf(yours), 'yours'); host.dataset.entry = yours.id; }
+}
+
+// ---------- putting something new down ----------
+function addItem(side, it) {
+  if (side === 'mine') {
+    state.items = state.items.concat([{ ...it, by: state.name }]);
+    renderMine();
+    markDirty();
+    return;
+  }
+  const { yours } = pagesFor(state.date);
+  if (!yours) return;
+  yours.items = itemsOf(yours).concat([{ ...it, by: state.name }]);
+  renderTheirs();
+  saveStickers(yours);
+}
+// a fresh thing lands near the middle, nudged so the next one does not hide it
+function dropSpot(n) {
+  return { x: 42 + ((n * 9) % 26), y: 26 + ((n * 13) % 40), r: (n % 2 ? 1 : -1) * (3 + (n * 5) % 9), s: 1 };
+}
+
+async function saveStickers(entry) {
   try {
-    const res = await api(`/api/entries/${entry.id}/decor`, {
+    const res = await api(`/api/entries/${entry.id}/stickers`, {
       method: 'PUT',
-      body: JSON.stringify({ by: state.name, decor: entry.decor }),
+      body: JSON.stringify({
+        by: state.name,
+        stickers: itemsOf(entry).filter((it) => it.k === 'sticker' && (it.by || '') === state.name),
+      }),
     });
-    entry.decor = res.decor;
-  } catch (e) { toast('Could not save that: ' + e.message); }
+    entry.items = res.items;
+    renderTheirs();
+  } catch (e) { toast('Could not leave that: ' + e.message); }
 }
 
 // ---------- the tray you pick from ----------
 function openTray(anchor, side) {
-  const { mine, yours } = pagesFor(state.date);
-  const entry = side === 'mine' ? mine : yours;
-  if (!entry) {
-    toast(side === 'mine' ? 'Save your page first' : 'Nothing to decorate here yet');
+  if (side === 'yours' && !pagesFor(state.date).yours) {
+    toast('Nothing to decorate here yet');
     return;
   }
   state.trayFor = side;
   $('tray').innerHTML = `
     <h4>Stickers</h4>
     <div class="grid">${STICKERS.map((e) => `<button data-st="${e}">${e}</button>`).join('')}</div>
-    ${side === 'mine' ? `<h4 style="margin-top:10px">Tape</h4>
+    ${side === 'mine' ? `
+      <h4 style="margin-top:10px">Tape</h4>
       <div class="tapes">${TAPES.map((t) =>
-        `<button class="decor-face tape ${t}" data-tape="${t}"></button>`).join('')}</div>` : ''}`;
+        `<button class="ci-tape ${t}" data-tape="${t}"></button>`).join('')}</div>
+      <h4 style="margin-top:10px">Write</h4>
+      <div class="tapes"><button class="tray-text" data-text="1">＋ Text box</button></div>` : ''}`;
   $('tray').classList.remove('hidden');
   const r = anchor.getBoundingClientRect(), t = $('tray').getBoundingClientRect();
-  const left = Math.min(Math.max(8, r.left), innerWidth - t.width - 8);
-  const top = r.top - t.height - 8 > 8 ? r.top - t.height - 8 : r.bottom + 8;
-  $('tray').style.left = left + 'px';
-  $('tray').style.top = top + 'px';
+  $('tray').style.left = Math.min(Math.max(8, r.left), innerWidth - t.width - 8) + 'px';
+  $('tray').style.top = (r.top - t.height - 8 > 8 ? r.top - t.height - 8 : r.bottom + 8) + 'px';
 }
 const closeTray = () => $('tray').classList.add('hidden');
 
-$('tray').onclick = async (e) => {
-  const st = e.target.closest('[data-st]'), tp = e.target.closest('[data-tape]');
-  if (!st && !tp) return;
+$('tray').onclick = (e) => {
+  const st = e.target.closest('[data-st]');
+  const tp = e.target.closest('[data-tape]');
+  const tx = e.target.closest('[data-text]');
+  if (!st && !tp && !tx) return;
   const side = state.trayFor;
-  const { mine, yours } = pagesFor(state.date);
-  const entry = side === 'mine' ? mine : yours;
-  if (!entry) return;
-  // land near the middle, nudged so a second one does not hide the first
-  const n = decorOf(entry).length;
-  entry.decor = decorOf(entry).concat([{
-    k: tp ? 'tape' : 'sticker', v: tp ? tp.dataset.tape : st.dataset.st,
-    x: 45 + ((n * 7) % 25), y: 30 + ((n * 11) % 35),
-    r: (n % 2 ? 1 : -1) * (4 + (n * 3) % 10), s: 1, by: state.name,
-  }]);
+  const n = side === 'mine' ? state.items.length : itemsOf(pagesFor(state.date).yours).length;
+  const at = dropSpot(n);
   closeTray();
-  renderDecor();
-  const host = side === 'mine' ? $('editor') : $('pageYours').querySelector('.paper-body');
-  await saveDecor(host.querySelector(':scope > .decor-layer'));
+  if (tx) {
+    addItem(side, { k: 'text', v: '', w: 60, fs: 3.4, ...at, r: 0 });
+    setTimeout(() => beginEdit(state.items.length - 1), 30);
+  } else if (tp) {
+    addItem(side, { k: 'tape', v: tp.dataset.tape, ...at });
+  } else {
+    addItem(side, { k: 'sticker', v: st.dataset.st, ...at });
+  }
 };
-
 $('btnDecor').onclick = (e) => {
   e.stopPropagation();
   $('tray').classList.contains('hidden') ? openTray(e.currentTarget, 'mine') : closeTray();
 };
 document.addEventListener('click', (e) => {
-  if (!$('tray').classList.contains('hidden')
-      && !e.target.closest('#tray') && !e.target.closest('#btnDecor')
-      && !e.target.closest('.head-decor')) closeTray();
+  if (!$('tray').classList.contains('hidden') && !e.target.closest('#tray')
+      && !e.target.closest('#btnDecor') && !e.target.closest('.head-decor')) closeTray();
 });
 
-// ---------- moving, turning and resizing a decoration ----------
-let decorAct = null;
-const deselectDecor = () =>
-  document.querySelectorAll('.decor-item.sel').forEach((x) => x.classList.remove('sel'));
+// ---------- writing in a text box ----------
+// The box is a plain textarea only while it is being written in, which keeps
+// Korean input safe and leaves dragging to the box itself the rest of the time.
+function beginEdit(i) {
+  const el = $('editor').querySelector(`.ci[data-i="${i}"]`);
+  const it = state.items[i];
+  if (!el || !it || it.k !== 'text') return;
+  const face = el.querySelector('.ci-face');
+  const ta = document.createElement('textarea');
+  ta.className = 'ci-face ci-text editing';
+  ta.value = it.v || '';
+  face.replaceWith(ta);
+  el.classList.add('editing');
+  state.editing = i;
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+  grow();
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.addEventListener('input', () => { it.v = ta.value; grow(); markDirty(); });
+  ta.addEventListener('blur', () => {
+    state.editing = null;
+    it.v = ta.value;
+    if (!it.v.trim()) state.items = state.items.filter((_, k) => k !== i);
+    renderMine();
+    markDirty();
+  });
+}
+
+// ---------- moving, turning, resizing ----------
+let act = null;
+const deselect = () => document.querySelectorAll('.ci.sel').forEach((x) => x.classList.remove('sel'));
+
+function listFor(side) {
+  return side === 'mine' ? state.items : itemsOf(pagesFor(state.date).yours);
+}
+function commit(side) {
+  if (side === 'mine') markDirty();
+  else saveStickers(pagesFor(state.date).yours);
+}
 
 document.addEventListener('pointerdown', (e) => {
-  const del = e.target.closest('[data-del]');
+  const el = e.target.closest('.ci');
+  if (!el) { if (!e.target.closest('.ci-btn')) deselect(); return; }
+  const host = el.parentElement;
+  const side = host.dataset.side;
+  const list = listFor(side);
+  const i = +el.dataset.i;
+  const it = list[i];
+  if (!it || !canTouch(it, side)) return;
+
+  const del = e.target.closest('.ci-del');
   if (del) {
     e.preventDefault();
-    const id = del.closest('.decor-layer').dataset.entry;
-    const entry = entryById(id);
-    if (!entry) return;
-    entry.decor = decorOf(entry).filter((_, i) => i !== +del.dataset.del);
-    renderDecor();   // rebuilds the layer, so re-find it before saving
-    const fresh = document.querySelector(`.decor-layer[data-entry="${id}"]`);
-    if (fresh) saveDecor(fresh);
+    if (side === 'mine') { state.items = state.items.filter((_, k) => k !== i); renderMine(); markDirty(); }
+    else {
+      const { yours } = pagesFor(state.date);
+      yours.items = itemsOf(yours).filter((_, k) => k !== i);
+      renderTheirs();
+      saveStickers(yours);
+    }
     return;
   }
-  const item = e.target.closest('.decor-item');
-  if (!item) { deselectDecor(); return; }
+  // while a box is being written in the caret owns the text, but its handles
+  // must still move, turn and widen it
+  if (el.classList.contains('editing') && !e.target.closest('.ci-btn')) return;
   e.preventDefault();
-  deselectDecor();
-  item.classList.add('sel');
-  const layer = item.closest('.decor-layer');
-  const entry = entryById(layer.dataset.entry);
-  const d = decorOf(entry)[+item.dataset.i];
-  if (!d) return;
-  const box = layer.getBoundingClientRect();
-  const cx = box.left + (d.x / 100) * box.width;
-  const cy = box.top + (d.y / 100) * box.height;
-  const rs = e.target.closest('[data-rs]');
-  decorAct = rs
-    ? { mode: 'turn', item, layer, d, cx, cy,
-        dist0: Math.hypot(e.clientX - cx, e.clientY - cy) || 1,
-        ang0: Math.atan2(e.clientY - cy, e.clientX - cx),
-        r0: d.r, s0: d.s }
-    : { mode: 'move', item, layer, d, box,
-        dx: e.clientX - cx, dy: e.clientY - cy };
-  (rs || item).setPointerCapture(e.pointerId);
+  deselect();
+  el.classList.add('sel');
+
+  const box = host.getBoundingClientRect();
+  const cx = box.left + (it.x / 100) * box.width;
+  const cy = box.top + (it.y / 100) * box.height;
+  const rs = e.target.closest('.ci-rs');
+  const wd = e.target.closest('.ci-wd');
+  act = {
+    side, it, el, host, box,
+    mode: rs ? 'turn' : wd ? 'width' : 'move',
+    dx: e.clientX - cx, dy: e.clientY - cy,
+    dist0: Math.hypot(e.clientX - cx, e.clientY - cy) || 1,
+    ang0: Math.atan2(e.clientY - cy, e.clientX - cx),
+    r0: it.r || 0, s0: it.s || 1, w0: it.w || 60, x0: e.clientX,
+    moved: false, i,
+  };
+  (rs || wd || el).setPointerCapture(e.pointerId);
 });
 
 document.addEventListener('pointermove', (e) => {
-  const a = decorAct;
-  if (!a) return;
-  if (a.mode === 'move') {
-    const box = a.layer.getBoundingClientRect();
-    a.d.x = Math.min(100, Math.max(0, ((e.clientX - a.dx - box.left) / box.width) * 100));
-    a.d.y = Math.min(100, Math.max(0, ((e.clientY - a.dy - box.top) / box.height) * 100));
-    a.item.style.left = a.d.x + '%';
-    a.item.style.top = a.d.y + '%';
+  if (!act) return;
+  const box = act.host.getBoundingClientRect();
+  act.moved = true;
+  if (act.mode === 'move') {
+    // keep the middle of a thing on the page: it may hang over an edge, but
+    // never so far that it cannot be picked up again
+    act.it.x = Math.min(98, Math.max(2, ((e.clientX - act.dx - box.left) / box.width) * 100));
+    act.it.y = Math.min(98, Math.max(2, ((e.clientY - act.dy - box.top) / box.height) * 100));
+    act.el.style.left = act.it.x + '%';
+    act.el.style.top = act.it.y + '%';
+  } else if (act.mode === 'turn') {
+    const cx = box.left + (act.it.x / 100) * box.width;
+    const cy = box.top + (act.it.y / 100) * box.height;
+    const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
+    const ang = Math.atan2(e.clientY - cy, e.clientX - cx);
+    act.it.s = Math.min(6, Math.max(0.2, (act.s0 * dist) / act.dist0));
+    act.it.r = Math.max(-180, Math.min(180, act.r0 + ((ang - act.ang0) * 180) / Math.PI));
+    act.el.style.setProperty('--s', act.it.s.toFixed(2));
+    act.el.style.setProperty('--r', act.it.r.toFixed(1) + 'deg');
   } else {
-    const dist = Math.hypot(e.clientX - a.cx, e.clientY - a.cy);
-    const ang = Math.atan2(e.clientY - a.cy, e.clientX - a.cx);
-    a.d.s = Math.min(4, Math.max(0.4, (a.s0 * dist) / a.dist0));
-    a.d.r = Math.max(-180, Math.min(180,
-      a.r0 + ((ang - a.ang0) * 180) / Math.PI));
-    a.item.style.setProperty('--s', a.d.s.toFixed(2));
-    a.item.style.setProperty('--r', a.d.r.toFixed(1) + 'deg');
+    act.it.w = Math.min(110, Math.max(8, act.w0 + ((e.clientX - act.x0) / box.width) * 200));
+    act.el.style.setProperty('--w', act.it.w.toFixed(1));
   }
 });
+
 document.addEventListener('pointerup', () => {
-  if (!decorAct) return;
-  const layer = decorAct.layer;
-  decorAct = null;
-  saveDecor(layer);
+  if (!act) return;
+  const { side, moved, it, i } = act;
+  act = null;
+  if (moved) commit(side);
+  else if (side === 'mine' && it.k === 'text') beginEdit(i);   // a tap opens the box
 });
 
-// ---------- moving and resizing a photo ----------
-let drag = null, resize = null;
-
-// Where each paragraph of a textarea starts, measured with a mirror so that
-// wrapped lines are accounted for.
-function paragraphStarts(ta) {
-  const cs = getComputedStyle(ta);
-  const mirror = document.createElement('div');
-  mirror.style.cssText = `position:absolute;visibility:hidden;left:-9999px;top:0;
-    width:${ta.clientWidth}px;font:${cs.font};line-height:${cs.lineHeight};
-    white-space:pre-wrap;word-break:break-word;`;
-  document.body.appendChild(mirror);
-  const lines = ta.value.split('\n');
-  const spans = lines.map((l) => {
-    const s = document.createElement('span');
-    s.textContent = (l || ' ') + '\n';
-    mirror.appendChild(s);
-    return s;
-  });
-  const out = [];
-  let off = 0;
-  spans.forEach((s, i) => { out.push({ offset: off, top: s.offsetTop }); off += lines[i].length + 1; });
-  const end = { offset: ta.value.length, top: mirror.offsetHeight };
-  mirror.remove();
-  out.push(end);
-  return out;
-}
-
-// The gap the pointer is nearest: either between blocks, or between two
-// paragraphs inside a block of writing.
-function dropTarget(clientY) {
-  const ed = $('editor');
-  const kids = [...ed.children].filter((el) => el.matches('textarea.blk, .photo-block'));
-  const edTop = ed.getBoundingClientRect().top;
-  for (const el of kids) {
-    const r = el.getBoundingClientRect();
-    if (clientY < r.top || clientY > r.bottom) continue;
-    if (el.matches('textarea.blk')) {
-      let best = null, bd = Infinity;
-      for (const m of paragraphStarts(el)) {
-        const d = Math.abs(r.top + m.top - clientY);
-        if (d < bd) { bd = d; best = m; }
-      }
-      return { i: +el.dataset.i, offset: best.offset, y: r.top + best.top - edTop };
-    }
-    const after = clientY > r.top + r.height / 2;
-    return { i: +el.dataset.i, after, y: (after ? r.bottom : r.top) - edTop };
-  }
-  const last = kids[kids.length - 1];
-  if (!last) return null;
-  const r = last.getBoundingClientRect();
-  return clientY < r.top
-    ? { i: +kids[0].dataset.i, after: false, y: kids[0].getBoundingClientRect().top - edTop }
-    : { i: +last.dataset.i, after: true, y: r.bottom - edTop };
-}
-function showDropLine(t) {
-  let line = $('editor').querySelector('.drop-line');
-  if (!line) { line = document.createElement('div'); line.className = 'drop-line'; $('editor').appendChild(line); }
-  line.style.top = t.y + 'px';
-}
-function hideDropLine() { $('editor').querySelector('.drop-line')?.remove(); }
-
-$('editor').addEventListener('pointerdown', (e) => {
-  const grip = e.target.closest('[data-grip]');
-  if (grip) {
-    e.preventDefault();
-    const fig = grip.closest('.photo-block');
-    drag = { block: state.blocks[+grip.dataset.grip], fig, target: null };
-    fig.classList.add('dragging');
-    grip.setPointerCapture(e.pointerId);
-    return;
-  }
-  const sz = e.target.closest('[data-size]');
-  if (sz) {
-    e.preventDefault();
-    const fig = sz.closest('.photo-block');
-    resize = {
-      block: state.blocks[+sz.dataset.size], fig,
-      startX: e.clientX, startW: fig.getBoundingClientRect().width,
-      col: $('editor').clientWidth,
-    };
-    sz.setPointerCapture(e.pointerId);
-  }
-});
-
-$('editor').addEventListener('pointermove', (e) => {
-  if (resize) {
-    const px = resize.startW + (e.clientX - resize.startX);
-    resize.w = clampW((px / resize.col) * 100);
-    resize.fig.style.maxWidth = resize.w + '%';
-    return;
-  }
-  if (drag) {
-    drag.target = dropTarget(e.clientY);
-    if (drag.target) showDropLine(drag.target);
-  }
-});
-
-function endResize() {
-  if (!resize) return;
-  if (resize.w && resize.w !== resize.block.w) {
-    syncFromDom();
-    resize.block.w = resize.w;
-    markDirty();
-  }
-  resize = null;
-  snapPhotos();
-}
-function endDrag() {
-  if (!drag) return;
-  const { block, target } = drag;
-  drag.fig.classList.remove('dragging');
-  hideDropLine();
-  drag = null;
-  if (!target) return;
-  syncFromDom();
-  // Mark the landing spot first, so the offsets just measured stay valid while
-  // the photo is lifted out of its old place.
-  const spot = { type: 'spot' };
-  if (target.offset != null) {
-    const b = state.blocks[target.i];
-    if (!b || b.type !== 'text') return;
-    state.blocks.splice(target.i, 1,
-      { type: 'text', value: b.value.slice(0, target.offset) },
-      spot,
-      { type: 'text', value: b.value.slice(target.offset) });
-  } else {
-    state.blocks.splice(target.after ? target.i + 1 : target.i, 0, spot);
-  }
-  const from = state.blocks.indexOf(block);
-  if (from !== -1) state.blocks.splice(from, 1);
-  state.blocks.splice(state.blocks.indexOf(spot), 1, block);
-  stitchText();
-  renderEditor(); markDirty();
-}
-$('editor').addEventListener('pointerup', () => { endResize(); endDrag(); });
-$('editor').addEventListener('pointercancel', () => {
-  resize = null;
-  if (drag) { drag.fig.classList.remove('dragging'); hideDropLine(); drag = null; }
-});
-
-$('inPhoto').onchange = async (e) => {
-  const files = [...e.target.files].slice(0, 10 - photoCount());
-  e.target.value = '';
-  if (!files.length) return;
-  const shots = [];
-  for (const f of files) shots.push(await compress(f));
-  insertPhotos(shots);
-};
-
-// Photos drop in at the cursor, splitting that paragraph in two
-function insertPhotos(srcs) {
-  syncFromDom();   // the paragraph being split lives in the DOM until now
-  let at = state.caret;
-  if (!at || state.blocks[at.i]?.type !== 'text') {
-    const last = state.blocks.map((b, i) => [b, i]).filter(([b]) => b.type === 'text').pop();
-    at = last ? { i: last[1], pos: last[0].value.length } : null;
-  }
-  if (!at) { state.blocks.push({ type: 'text', value: '' }); at = { i: state.blocks.length - 1, pos: 0 }; }
-  const b = state.blocks[at.i];
-  const parts = [{ type: 'text', value: b.value.slice(0, at.pos) }];
-  srcs.forEach((s) => parts.push(typeof s === 'string'
-    ? { type: 'photo', src: s, w: 100 }
-    : { type: 'photo', src: s.src, w: s.w }));
-  parts.push({ type: 'text', value: b.value.slice(at.pos) });
-  state.blocks.splice(at.i, 1, ...parts);
-  renderEditor(); markDirty();
-  const next = $('editor').querySelector(`textarea.blk[data-i="${at.i + srcs.length + 1}"]`);
-  if (next) { next.focus(); next.setSelectionRange(0, 0); rememberCaret(next); }
-}
-
-// Two paragraphs that end up next to each other were split by a photo that has
-// since moved or gone; rejoin them exactly where the split was.
-function stitchText() {
-  for (let k = state.blocks.length - 1; k > 0; k--) {
-    const a = state.blocks[k - 1], b = state.blocks[k];
-    if (a.type === 'text' && b.type === 'text') {
-      const head = a.value.replace(/\n$/, ''), tail = b.value.replace(/^\n/, '');
-      a.value = head && tail ? head + '\n' + tail : head + tail;
-      state.blocks.splice(k, 1);
-    }
-  }
-}
-function removePhoto(i) {
-  syncFromDom();
-  state.blocks.splice(i, 1);
-  stitchText();
-  renderEditor(); markDirty();
-}
-
-// A new photo comes in 240px tall, narrowing only if that would run past the
-// edge of the page.
-const PHOTO_H = 240;
-function defaultWidth(imgW, imgH) {
-  const col = $('editor').clientWidth || 460;
-  return clampW((PHOTO_H * (imgW / imgH)) / col * 100);
-}
-
-// Compress photos to 1280px on the long side, JPEG quality 0.8, to keep uploads small
+// ---------- photos ----------
+// Photos come in about a quarter of the page wide, then you place them.
 function compress(file) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -1180,30 +856,39 @@ function compress(file) {
       c.height = Math.round(img.height * scale);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(img.src);
-      resolve({ src: c.toDataURL('image/jpeg', 0.8), w: defaultWidth(c.width, c.height) });
+      resolve(c.toDataURL('image/jpeg', 0.8));
     };
     img.src = URL.createObjectURL(file);
   });
 }
+$('inPhoto').onchange = async (e) => {
+  const files = [...e.target.files].slice(0, 10);
+  e.target.value = '';
+  for (const f of files) {
+    const src = await compress(f);
+    const at = dropSpot(state.items.length);
+    state.items = state.items.concat([{ k: 'photo', src, w: 42, ...at, by: state.name }]);
+  }
+  renderMine();
+  markDirty();
+};
 
+// ---------- saving my page ----------
 async function savePage() {
-  syncFromDom();
-  const { text, photos } = serializeBlocks(state.blocks);
-  const written = text.split(PHOTO_MARK).join('').trim();
-  if (!written && !photos.length) { toast('Add some text or a photo'); return false; }
+  if (!state.items.length) { toast('Put something on the page first'); return false; }
   $('btnSave').disabled = true;
   try {
-    // One page per person per day: the server updates my existing page for this date
-    await api('/api/entries', {
+    const { entry } = await api('/api/entries', {
       method: 'POST',
       body: JSON.stringify({
-        author: state.name, text, date: state.date,
-        mood: state.mood, photos,
+        author: state.name, date: state.date, mood: state.mood,
+        items: state.items,
         tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     });
     state.dirty = false;
     await refresh();
+    state.items = itemsOf(entry).map((it) => ({ ...it }));
     renderSpread();
     toast('Saved ♥');
     return true;
@@ -1224,15 +909,6 @@ function editedTag(e) {
 
 // The partner's page, read only: the same paragraphs and photos, in the same
 // order they were written in.
-function readingBlocks(entry) {
-  return parseBlocks(entry.text, entry.photos).map((b) => b.type === 'photo'
-    ? `<figure class="photo-block" style="width:${clampW(b.w)}%">
-         <img loading="lazy" src="${photoUrl(b.src)}" data-full="${photoUrl(b.src)}"
-              data-name="${esc(entry.author + '-' + entry.date)}"
-              data-key="${esc(String(b.src).slice(-32))}" alt="diary photo">
-       </figure>`
-    : (b.value.trim() ? `<div class="para">${esc(b.value)}</div>` : '')).join('');
-}
 
 // ---------- rendering one spread ----------
 function renderSpread(keepDraft = false) {
@@ -1244,14 +920,13 @@ function renderSpread(keepDraft = false) {
   $('btnNext').disabled = state.date >= localDate();
   $('myName').textContent = state.name;
 
-  // Left page — a background refresh must never touch it while it is being
-  // written in. Reassigning .value cancels an in-flight IME composition, which
-  // drops the caret and swallows keystrokes mid-word when typing Korean.
-  const writing = state.dirty || state.composing || $('editor').contains(document.activeElement);
-  if (!keepDraft || !writing) {
-    state.blocks = parseBlocks(mine ? mine.text : '', mine ? mine.photos : []);
-    state.caret = null;
-    renderEditor();
+  // Left page — a background refresh must never rebuild it while it is being
+  // laid out or written in, or an in-flight Korean composition is cancelled
+  // and whatever has been dragged since the last save jumps back.
+  const busy = state.dirty || state.editing != null || $('editor').contains(document.activeElement);
+  if (!keepDraft || !busy) {
+    state.items = itemsOf(mine).map((it) => ({ ...it }));
+    renderMine();
     state.mood = mine ? (mine.mood || '') : '';
     [...$('moods').children].forEach((x) => x.classList.toggle('sel', x.dataset.m === state.mood));
     state.dirty = false;
@@ -1270,7 +945,7 @@ function renderSpread(keepDraft = false) {
          <span class="time">${editedTag(yours)}</span>
          <button class="head-decor" id="btnDecorYours" title="Leave a sticker">✨</button>
        </div>
-       <div class="paper-body diary-type">${readingBlocks(yours)}</div>`
+       <div class="paper-body"></div>`
     : `<div class="page-head"><span class="who">${esc(who)}</span></div>
        <div class="page-empty">This page is still blank.<br>${esc(who)} hasn't written this day yet.</div>`;
   const yb = $('btnDecorYours');
@@ -1279,13 +954,7 @@ function renderSpread(keepDraft = false) {
     $('tray').classList.contains('hidden') ? openTray(e.currentTarget, 'yours') : closeTray();
   };
 
-  renderDecor();
-
-  // their prints get the same tilt, once each image knows its size
-  dressPhotos($('pageYours'));
-  $('pageYours').querySelectorAll('.photo-block img').forEach((img) => {
-    img.onload = () => dressPhotos($('pageYours'));
-  });
+  renderTheirs();
 
   // soft nudge — never a gate
   const st = $('spreadStatus');
