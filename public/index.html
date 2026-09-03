@@ -308,6 +308,56 @@
   .ci-rs  { bottom: -13px; right: -13px; cursor: nwse-resize; background: var(--me); }
   .ci-wd  { top: 50%; right: -13px; margin-top: -11px; cursor: ew-resize; background: var(--you); }
 
+  /* ---- the tray you pick things from ---- */
+  .tray {
+    position: fixed; z-index: 40; width: 272px; padding: 12px;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 12px 34px var(--shadow);
+  }
+  .tray h4 {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 2px 0 7px;
+  }
+  .tray .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+  .tray .grid button {
+    aspect-ratio: 1; border: none; background: none; cursor: pointer;
+    font-size: 19px; border-radius: 6px; line-height: 1; padding: 0;
+  }
+  .tray .grid button:hover { background: var(--bg); }
+  .tray .tapes { display: flex; gap: 7px; }
+  /* the swatch is sized in pixels: the tray is not the page, so the page's
+     own units would blow it up */
+  .tape-swatch {
+    flex: 1; height: 24px; border: none; cursor: pointer; padding: 0;
+    background:
+      repeating-linear-gradient(90deg,
+        rgba(255, 255, 255, 0.16) 0 3px, rgba(255, 255, 255, 0) 3px 7px),
+      linear-gradient(180deg, var(--tape-a), var(--tape-b));
+    clip-path: polygon(4% 0%, 96% 3%, 100% 30%, 97% 70%, 96% 100%, 4% 97%, 0% 70%, 3% 30%);
+  }
+  .tape-swatch.pink { --tape-a: rgba(246, 205, 208, .86); --tape-b: rgba(234, 178, 184, .8); }
+  .tape-swatch.mint { --tape-a: rgba(203, 233, 219, .86); --tape-b: rgba(174, 214, 197, .8); }
+  .tape-swatch.sky  { --tape-a: rgba(203, 224, 243, .86); --tape-b: rgba(174, 203, 231, .8); }
+  .tray-text {
+    width: 100%; padding: 9px; font-family: var(--sans); font-size: 13px; font-weight: 600;
+    color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 7px; cursor: pointer;
+  }
+  .tray-text:hover { border-color: var(--me); color: var(--me); }
+
+  /* ---- the two buttons that open it ---- */
+  .btn-decor {
+    display: flex; align-items: center; gap: 5px; font-size: 13px;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--ink); cursor: pointer; font-family: var(--sans);
+  }
+  .btn-decor:hover { border-color: var(--me); }
+  .head-decor {
+    margin-left: 6px; font-size: 15px; line-height: 1; padding: 3px 6px;
+    background: none; border: none; cursor: pointer; border-radius: 6px; opacity: 0.55;
+  }
+  .head-decor:hover { opacity: 1; background: var(--bg); }
+
 
 
   .page-empty {
@@ -686,7 +736,7 @@ function openTray(anchor, side) {
     ${side === 'mine' ? `
       <h4 style="margin-top:10px">Tape</h4>
       <div class="tapes">${TAPES.map((t) =>
-        `<button class="ci-tape ${t}" data-tape="${t}"></button>`).join('')}</div>
+        `<button class="tape-swatch ${t}" data-tape="${t}" title="${t} tape"></button>`).join('')}</div>
       <h4 style="margin-top:10px">Write</h4>
       <div class="tapes"><button class="tray-text" data-text="1">＋ Text box</button></div>` : ''}`;
   $('tray').classList.remove('hidden');
