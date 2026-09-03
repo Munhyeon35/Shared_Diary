@@ -338,25 +338,27 @@
   .tape-swatch.pink { --tape-a: rgba(246, 205, 208, .86); --tape-b: rgba(234, 178, 184, .8); }
   .tape-swatch.mint { --tape-a: rgba(203, 233, 219, .86); --tape-b: rgba(174, 214, 197, .8); }
   .tape-swatch.sky  { --tape-a: rgba(203, 224, 243, .86); --tape-b: rgba(174, 203, 231, .8); }
-  .tray-text {
-    width: 100%; padding: 9px; font-family: var(--sans); font-size: 13px; font-weight: 600;
-    color: var(--ink); background: var(--bg); border: 1px solid var(--line);
-    border-radius: 7px; cursor: pointer;
-  }
-  .tray-text:hover { border-color: var(--me); color: var(--me); }
 
   /* ---- the two buttons that open it ---- */
-  .btn-decor {
-    display: flex; align-items: center; gap: 5px; font-size: 13px;
-    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
-    background: var(--bg); color: var(--ink); cursor: pointer; font-family: var(--sans);
+  /* Buttons carry a drawn mark rather than a word: the words crowded the
+     page, and an emoji would be a different picture on each phone. */
+  .icon-btn {
+    width: 38px; height: 38px; flex: none; display: grid; place-items: center;
+    padding: 0; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--bg); color: var(--ink-soft); cursor: pointer;
   }
-  .btn-decor:hover { border-color: var(--me); }
+  .icon-btn:hover, .icon-btn:focus-visible { color: var(--me); border-color: var(--me); outline: none; }
+  .icon-btn svg, .head-decor svg { width: 21px; height: 21px; display: block; }
+  .icon-btn svg, .head-decor svg {
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
   .head-decor {
-    margin-left: 6px; font-size: 15px; line-height: 1; padding: 3px 6px;
-    background: none; border: none; cursor: pointer; border-radius: 6px; opacity: 0.55;
+    margin-left: 6px; flex: none; display: grid; place-items: center;
+    width: 28px; height: 28px; padding: 0; color: var(--ink-soft);
+    background: none; border: none; cursor: pointer; border-radius: 6px; opacity: 0.6;
   }
-  .head-decor:hover { opacity: 1; background: var(--bg); }
+  .head-decor:hover { opacity: 1; color: var(--you); background: var(--bg); }
 
 
 
@@ -377,11 +379,6 @@
   .page-actions {
     display: flex; align-items: center; gap: 8px;
     margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
-  }
-  .btn-photo {
-    display: flex; align-items: center; gap: 5px; font-size: 13px;
-    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
-    background: var(--bg); color: var(--ink); cursor: pointer;
   }
   .btn-save {
     margin-left: auto; padding: 9px 20px; font-size: 14px; font-weight: 700;
@@ -468,10 +465,26 @@
         </div>
         <div class="paper-body diary-type" id="editor"></div>
         <div class="page-actions">
-          <label class="btn-photo" title="The photo lands where your cursor is">📷 Photo
+          <label class="icon-btn" title="Add a photo" aria-label="Add a photo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3.4" y="5.6" width="17.2" height="13.4" rx="1.6" transform="rotate(-2.5 12 12)"/>
+              <circle cx="8.9" cy="10.2" r="1.7"/>
+              <path d="M4.6 16.8 9.4 12.6 13 15.4 16.2 12.4 20 16.1"/>
+            </svg>
             <input type="file" id="inPhoto" accept="image/*" multiple hidden>
           </label>
-          <button class="btn-decor" id="btnDecor" title="Stickers and tape">✨ Decorate</button>
+          <button class="icon-btn" id="btnText" title="Add a text box" aria-label="Add a text box">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5.2 6.2h13.4M11.9 6.4v11.1"/>
+              <path d="M8.6 20.4c1.8-.9 3.5-.9 5.3 0s3.4.9 5.2 0"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btnDecor" title="Stickers and tape" aria-label="Stickers and tape">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9.6 3.6 11.3 8 15.8 9.6 11.3 11.3 9.6 15.8 8 11.3 3.6 9.6 8 8Z"/>
+              <path d="M17.2 13.4l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z"/>
+            </svg>
+          </button>
           <span class="saved-note" id="savedNote"></span>
           <button class="btn-save" id="btnSave">Save</button>
         </div>
@@ -737,8 +750,7 @@ function openTray(anchor, side) {
       <h4 style="margin-top:10px">Tape</h4>
       <div class="tapes">${TAPES.map((t) =>
         `<button class="tape-swatch ${t}" data-tape="${t}" title="${t} tape"></button>`).join('')}</div>
-      <h4 style="margin-top:10px">Write</h4>
-      <div class="tapes"><button class="tray-text" data-text="1">＋ Text box</button></div>` : ''}`;
+` : ''}`;
   $('tray').classList.remove('hidden');
   const r = anchor.getBoundingClientRect(), t = $('tray').getBoundingClientRect();
   $('tray').style.left = Math.min(Math.max(8, r.left), innerWidth - t.width - 8) + 'px';
@@ -749,20 +761,19 @@ const closeTray = () => $('tray').classList.add('hidden');
 $('tray').onclick = (e) => {
   const st = e.target.closest('[data-st]');
   const tp = e.target.closest('[data-tape]');
-  const tx = e.target.closest('[data-text]');
-  if (!st && !tp && !tx) return;
+  if (!st && !tp) return;
   const side = state.trayFor;
   const n = side === 'mine' ? state.items.length : itemsOf(pagesFor(state.date).yours).length;
   const at = dropSpot(n);
   closeTray();
-  if (tx) {
-    addItem(side, { k: 'text', v: '', w: 60, fs: 3.4, ...at, r: 0 });
-    setTimeout(() => beginEdit(state.items.length - 1), 30);
-  } else if (tp) {
-    addItem(side, { k: 'tape', v: tp.dataset.tape, ...at });
-  } else {
-    addItem(side, { k: 'sticker', v: st.dataset.st, ...at });
-  }
+  addItem(side, tp ? { k: 'tape', v: tp.dataset.tape, ...at }
+                   : { k: 'sticker', v: st.dataset.st, ...at });
+};
+
+// Writing is its own button, not something buried in the tray
+$('btnText').onclick = () => {
+  addItem('mine', { k: 'text', v: '', w: 60, fs: 3.4, ...dropSpot(state.items.length), r: 0 });
+  setTimeout(() => beginEdit(state.items.length - 1), 30);
 };
 $('btnDecor').onclick = (e) => {
   e.stopPropagation();
@@ -993,7 +1004,7 @@ function renderSpread(keepDraft = false) {
          <span class="who">${esc(yours.author)}</span>
          ${yours.mood ? `<span class="mood-shown">${yours.mood}</span>` : ''}
          <span class="time">${editedTag(yours)}</span>
-         <button class="head-decor" id="btnDecorYours" title="Leave a sticker">✨</button>
+         <button class="head-decor" id="btnDecorYours" title="Leave a sticker" aria-label="Leave a sticker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.6 11.3 8 15.8 9.6 11.3 11.3 9.6 15.8 8 11.3 3.6 9.6 8 8Z"/><path d="M17.2 13.4l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z"/></svg></button>
        </div>
        <div class="paper-body"></div>`
     : `<div class="page-head"><span class="who">${esc(who)}</span></div>
