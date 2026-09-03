@@ -107,8 +107,17 @@ const num = (v, lo, hi, dflt) => {
 
 // Pages written before the canvas stored a run of text plus a photo list and a
 // separate decor array. Lay those out top to bottom so nothing is lost.
+// Vertical position is measured in the same unit as horizontal — hundredths
+// of the page's width — so a page can grow taller without the things already
+// on it sliding apart. Pages saved before that (v < 2) measured y against the
+// page height instead, so their y is converted on the way out.
+const PAGE_TALL = 100 / 0.72;      // the sheet starts this many width-units tall
+
 function itemsOf(entry) {
-  if (Array.isArray(entry.items)) return entry.items;
+  if (Array.isArray(entry.items)) {
+    if (entry.v >= 2) return entry.items;
+    return entry.items.map((it) => ({ ...it, y: num(it.y, -50, 400, 50) * (PAGE_TALL / 100) }));
+  }
   const laid = [];
   const parts = String(entry.text || '').split(/\n?\[\[photo(?::\d{1,3})?\]\]\n?/);
   const photos = entry.photos || [];
@@ -118,13 +127,15 @@ function itemsOf(entry) {
     if (i < parts.length - 1 && p < photos.length) laid.push({ k: 'photo', src: photos[p++], w: 40 });
   });
   while (p < photos.length) laid.push({ k: 'photo', src: photos[p++], w: 40 });
-  // spread them down the page so nothing lands off the edge
-  const step = laid.length > 1 ? 62 / (laid.length - 1) : 0;
+  // spread them down the sheet so nothing lands off the edge
+  const step = laid.length > 1 ? (PAGE_TALL * 0.62) / (laid.length - 1) : 0;
   const items = laid.map((it, i) => ({
-    ...it, x: 50, y: laid.length > 1 ? 20 + i * step : 40, r: 0, s: 1, by: entry.author,
+    ...it, x: 50, y: laid.length > 1 ? PAGE_TALL * 0.2 + i * step : PAGE_TALL * 0.4,
+    r: 0, s: 1, by: entry.author,
   }));
   for (const d of entry.decor || []) {
-    items.push({ k: d.k, v: d.v, x: d.x, y: d.y, r: d.r, s: d.s, by: d.by || entry.author });
+    items.push({ k: d.k, v: d.v, x: d.x, y: num(d.y, -50, 400, 50) * (PAGE_TALL / 100),
+                 r: d.r, s: d.s, by: d.by || entry.author });
   }
   return items;
 }
@@ -137,7 +148,7 @@ function cleanItems(raw, by, entryId, was, allEntries) {
   for (const d of (Array.isArray(raw) ? raw : []).slice(0, 80)) {
     if (!d || typeof d !== 'object') continue;
     const base = {
-      x: num(d.x, -20, 120, 50), y: num(d.y, -20, 120, 50),
+      x: num(d.x, -20, 120, 50), y: num(d.y, -20, 600, 50),
       r: num(d.r, -180, 180, 0), s: num(d.s, 0.2, 6, 1),
       by: String(d.by || by).slice(0, 30),
     };
@@ -229,7 +240,7 @@ const server = http.createServer(async (req, res) => {
         : existing ? [{ at: existing.createdAt, tz: existing.tz }] : []).slice(-99);
       if (changed) edits.push({ at: now, tz });
       const entry = {
-        id, author, date, items, photos, text, mood, tz, edits,
+        id, author, date, items, photos, text, mood, tz, edits, v: 2,
         createdAt: existing ? existing.createdAt : now,
         updatedAt: changed ? now : (existing ? existing.updatedAt : now),
       };
@@ -258,10 +269,11 @@ const server = http.createServer(async (req, res) => {
         .filter((d) => d && d.k === 'sticker' && String(d.v || '').trim())
         .map((d) => ({
           k: 'sticker', v: String(d.v).slice(0, 16),
-          x: num(d.x, -20, 120, 50), y: num(d.y, -20, 120, 50),
+          x: num(d.x, -20, 120, 50), y: num(d.y, -20, 600, 50),
           r: num(d.r, -180, 180, 0), s: num(d.s, 0.2, 6, 1), by,
         }));
       entry.items = theirs.concat(mine);
+      entry.v = 2;
       entry.photos = entry.items.filter((it) => it.k === 'photo').map((it) => it.src);
       saveEntries(entries);
       return json(res, 200, { items: entry.items });
