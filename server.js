@@ -166,6 +166,9 @@ const server = http.createServer(async (req, res) => {
       if (changed) edits.push({ at: now, tz });
       const entry = {
         id, author, date, text, photos, mood, tz, edits,
+        // decorations are placed and saved on their own; rewriting the page
+        // must not sweep them off it
+        decor: existing && Array.isArray(existing.decor) ? existing.decor : [],
         createdAt: existing ? existing.createdAt : now,
         updatedAt: changed ? now : (existing ? existing.updatedAt : now),
       };
@@ -173,6 +176,39 @@ const server = http.createServer(async (req, res) => {
       else entries.push(entry);
       saveEntries(entries);
       return json(res, 200, { entry });
+    }
+
+    // Decorations live on the page they are stuck to, so a sticker left on
+    // your partner's page is saved with their entry, tagged with who put it
+    // there. You may tape and sticker your own page; on theirs, stickers only.
+    const decorMatch = /^\/api\/entries\/([a-f0-9]{16})\/decor$/.exec(p);
+    if (decorMatch && req.method === 'PUT') {
+      const body = JSON.parse((await readBody(req)).toString() || '{}');
+      const entries = loadEntries();
+      const entry = entries.find((e) => e.id === decorMatch[1]);
+      if (!entry) return json(res, 404, { error: 'not_found' });
+      const by = String(body.by || '').slice(0, 30);
+      if (!by) return json(res, 400, { error: 'who' });
+      const num = (v, lo, hi, dflt) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
+      };
+      const clean = [];
+      for (const d of (Array.isArray(body.decor) ? body.decor : []).slice(0, 60)) {
+        const kind = d && d.k === 'tape' ? 'tape' : 'sticker';
+        if (kind === 'tape' && entry.author !== by) continue; // tape only on your own page
+        const value = String((d && d.v) || '').slice(0, 16);
+        if (!value) continue;
+        clean.push({
+          k: kind, v: value,
+          x: num(d.x, 0, 100, 50), y: num(d.y, 0, 100, 50),
+          r: num(d.r, -180, 180, 0), s: num(d.s, 0.3, 4, 1),
+          by: String(d.by || by).slice(0, 30),
+        });
+      }
+      entry.decor = clean;
+      saveEntries(entries);
+      return json(res, 200, { decor: clean });
     }
 
     const delMatch = /^\/api\/entries\/([a-f0-9]{16})$/.exec(p);

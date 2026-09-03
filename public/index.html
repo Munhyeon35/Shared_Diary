@@ -282,23 +282,80 @@
     box-shadow: 0 0 0 5px var(--paper), 0 0 0 6px var(--line), 0 3px 12px var(--shadow);
     cursor: zoom-in; -webkit-user-drag: none;
   }
-  /* a strip of washi tape holding the print to the page */
-  .photo-block::before {
-    content: ''; position: absolute; z-index: 2; pointer-events: none;
-    top: -10px; left: 50%; width: 84px; height: 23px;
-    transform: translateX(-50%) rotate(var(--tape, -1.6deg));
+  /* ---- what the two of you stick on the page ---- */
+  .paper-body { position: relative; }
+  .decor-layer {
+    position: absolute; inset: 0; z-index: 4; overflow: hidden;
+    pointer-events: none;                 /* the writing underneath stays reachable */
+  }
+  .decor-item {
+    position: absolute; pointer-events: auto; touch-action: none;
+    transform: translate(-50%, -50%) rotate(var(--r, 0deg)) scale(var(--s, 1));
+    cursor: grab; user-select: none; line-height: 1;
+  }
+  .decor-item:active { cursor: grabbing; }
+  /* the look lives on an inner element, so the tape's torn edge never
+     clips the handles that sit on the item */
+  .decor-face { display: block; }
+  .decor-face.sticker { font-size: 34px; filter: drop-shadow(0 2px 3px var(--shadow)); }
+  .decor-face.tape {
+    width: 92px; height: 24px;
     background:
       repeating-linear-gradient(90deg,
         rgba(255, 255, 255, 0.16) 0 3px, rgba(255, 255, 255, 0) 3px 7px),
       linear-gradient(180deg, var(--tape-a), var(--tape-b));
-    box-shadow: 0 1px 3px rgba(90, 72, 48, 0.22);
-    /* torn, slightly ragged ends rather than a clean rectangle */
-    clip-path: polygon(
-      3% 0%, 97% 2%, 100% 22%, 97% 48%, 100% 74%, 96% 100%,
-      4% 98%, 0% 76%, 3% 50%, 0% 24%);
-    opacity: 0.85;
+    box-shadow: 0 1px 3px rgba(90, 72, 48, 0.2);
+    /* torn ends rather than a clean rectangle */
+    clip-path: polygon(3% 0%, 97% 2%, 100% 22%, 97% 48%, 100% 74%,
+                       96% 100%, 4% 98%, 0% 76%, 3% 50%, 0% 24%);
+    opacity: 0.9;
   }
-  .photo-block.dragging::before { opacity: 0.5; }
+  .decor-face.tape.pink { --tape-a: rgba(246, 205, 208, .86); --tape-b: rgba(234, 178, 184, .8); }
+  .decor-face.tape.mint { --tape-a: rgba(203, 233, 219, .86); --tape-b: rgba(174, 214, 197, .8); }
+  .decor-face.tape.sky  { --tape-a: rgba(203, 224, 243, .86); --tape-b: rgba(174, 203, 231, .8); }
+  .decor-item.sel { outline: 1.5px dashed var(--me); outline-offset: 5px; }
+  /* handles keep their size and stay upright however the item is turned */
+  .decor-btn {
+    position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    border: none; cursor: pointer; color: #fff; font-size: 11px; line-height: 1;
+    background: rgba(40, 31, 20, 0.72); display: none; touch-action: none;
+    transform: rotate(calc(-1 * var(--r, 0deg))) scale(calc(1 / var(--s, 1)));
+  }
+  .decor-item.sel .decor-btn { display: block; }
+  .decor-del { top: -13px; right: -13px; }
+  .decor-rs  { bottom: -13px; right: -13px; cursor: nwse-resize; background: var(--me); }
+
+  /* ---- the tray you pick decorations from ---- */
+  .tray {
+    position: fixed; z-index: 40; width: 268px; padding: 12px;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 12px 34px var(--shadow);
+  }
+  .tray h4 {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 2px 0 7px;
+  }
+  .tray .grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+  .tray .grid button {
+    aspect-ratio: 1; border: none; background: none; cursor: pointer;
+    font-size: 19px; border-radius: 6px; line-height: 1;
+  }
+  .tray .grid button:hover { background: var(--bg); }
+  .tray .tapes { display: flex; gap: 7px; margin-top: 4px; }
+  .tray .tapes button {
+    flex: 1; height: 22px; border: none; cursor: pointer; border-radius: 3px;
+    clip-path: polygon(4% 0%, 96% 3%, 100% 30%, 97% 70%, 96% 100%, 4% 97%, 0% 70%, 3% 30%);
+  }
+  .btn-decor {
+    display: flex; align-items: center; gap: 5px; font-size: 13px;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--ink); cursor: pointer;
+  }
+  .head-decor {
+    margin-left: auto; font-size: 15px; line-height: 1; padding: 3px 6px;
+    background: none; border: none; cursor: pointer; border-radius: 6px; opacity: 0.55;
+  }
+  .head-decor:hover { opacity: 1; background: var(--bg); }
   .photo-block.dragging { opacity: 0.4; }
   .ph-btn {
     position: absolute; border: none; cursor: pointer; opacity: 0;
@@ -435,6 +492,7 @@
           <label class="btn-photo" title="The photo lands where your cursor is">📷 Photo
             <input type="file" id="inPhoto" accept="image/*" multiple hidden>
           </label>
+          <button class="btn-decor" id="btnDecor" title="Stickers and tape">✨ Decorate</button>
           <span class="saved-note" id="savedNote"></span>
           <button class="btn-save" id="btnSave">Save</button>
         </div>
@@ -447,6 +505,7 @@
   </div>
 </div>
 
+<div class="tray hidden" id="tray"></div>
 <div id="viewer">
   <img id="viewerImg" alt="">
   <a id="viewerSave" class="viewer-save" download>⬇&nbsp; Save photo</a>
@@ -674,6 +733,7 @@ function renderEditor() {
   // an image can change the grid once it has loaded
   ed.querySelectorAll('.photo-block img').forEach((img) => { img.onload = snapPhotos; });
   snapPhotos();
+  renderDecor();   // rebuilding the editor takes the decoration layer with it
 }
 // pad each photo so the text below it resumes on a ruled line
 // A print's tilt is derived from the photo itself, never rolled fresh, so it
@@ -738,6 +798,176 @@ $('editor').addEventListener('click', (e) => {
     const last = tas[tas.length - 1];
     if (last) { last.focus(); last.setSelectionRange(last.value.length, last.value.length); rememberCaret(last); }
   }
+});
+
+// ---------- what the two of you stick on the page ----------
+// A decoration belongs to the page it is stuck to, so a sticker left on your
+// partner's page is saved with their entry. Tape is yours alone; stickers can
+// go on either page.
+const STICKERS = ['❤️','💕','⭐','✨','🌸','🌿','☀️','🌙','☁️','🍀','🔥','🎈',
+                  '🎂','☕','🍜','🍺','🐱','🐶','😊','🥰','😂','😴','👍','✈️'];
+const TAPES = ['cream', 'pink', 'mint', 'sky'];
+
+const decorOf = (entry) => (entry && Array.isArray(entry.decor) ? entry.decor : []);
+const entryById = (id) => state.entries.find((e) => e.id === id);
+
+function decorItemHtml(d, i) {
+  const face = d.k === 'tape'
+    ? `<i class="decor-face tape ${esc(d.v)}"></i>`
+    : `<i class="decor-face sticker">${esc(d.v)}</i>`;
+  return `<div class="decor-item" data-i="${i}" title="by ${esc(d.by || '')}"
+       style="left:${d.x}%; top:${d.y}%; --r:${d.r}deg; --s:${d.s}">${face}
+       <button class="decor-btn decor-del" data-del="${i}" title="Remove">✕</button>
+       <button class="decor-btn decor-rs" data-rs="${i}" title="Turn and resize"></button>
+     </div>`;
+}
+function paintLayer(host, entry, isMine) {
+  if (!host) return;
+  host.querySelector(':scope > .decor-layer')?.remove();
+  if (!entry) return;
+  const layer = document.createElement('div');
+  layer.className = 'decor-layer';
+  layer.dataset.entry = entry.id;
+  layer.dataset.mine = isMine ? '1' : '';
+  layer.innerHTML = decorOf(entry).map(decorItemHtml).join('');
+  host.appendChild(layer);
+}
+function renderDecor() {
+  const { mine, yours } = pagesFor(state.date);
+  paintLayer($('editor'), mine, true);
+  paintLayer($('pageYours').querySelector('.paper-body'), yours, false);
+}
+async function saveDecor(layer) {
+  const entry = entryById(layer.dataset.entry);
+  if (!entry) return;
+  try {
+    const res = await api(`/api/entries/${entry.id}/decor`, {
+      method: 'PUT',
+      body: JSON.stringify({ by: state.name, decor: entry.decor }),
+    });
+    entry.decor = res.decor;
+  } catch (e) { toast('Could not save that: ' + e.message); }
+}
+
+// ---------- the tray you pick from ----------
+function openTray(anchor, side) {
+  const { mine, yours } = pagesFor(state.date);
+  const entry = side === 'mine' ? mine : yours;
+  if (!entry) {
+    toast(side === 'mine' ? 'Save your page first' : 'Nothing to decorate here yet');
+    return;
+  }
+  state.trayFor = side;
+  $('tray').innerHTML = `
+    <h4>Stickers</h4>
+    <div class="grid">${STICKERS.map((e) => `<button data-st="${e}">${e}</button>`).join('')}</div>
+    ${side === 'mine' ? `<h4 style="margin-top:10px">Tape</h4>
+      <div class="tapes">${TAPES.map((t) =>
+        `<button class="decor-face tape ${t}" data-tape="${t}"></button>`).join('')}</div>` : ''}`;
+  $('tray').classList.remove('hidden');
+  const r = anchor.getBoundingClientRect(), t = $('tray').getBoundingClientRect();
+  const left = Math.min(Math.max(8, r.left), innerWidth - t.width - 8);
+  const top = r.top - t.height - 8 > 8 ? r.top - t.height - 8 : r.bottom + 8;
+  $('tray').style.left = left + 'px';
+  $('tray').style.top = top + 'px';
+}
+const closeTray = () => $('tray').classList.add('hidden');
+
+$('tray').onclick = async (e) => {
+  const st = e.target.closest('[data-st]'), tp = e.target.closest('[data-tape]');
+  if (!st && !tp) return;
+  const side = state.trayFor;
+  const { mine, yours } = pagesFor(state.date);
+  const entry = side === 'mine' ? mine : yours;
+  if (!entry) return;
+  // land near the middle, nudged so a second one does not hide the first
+  const n = decorOf(entry).length;
+  entry.decor = decorOf(entry).concat([{
+    k: tp ? 'tape' : 'sticker', v: tp ? tp.dataset.tape : st.dataset.st,
+    x: 45 + ((n * 7) % 25), y: 30 + ((n * 11) % 35),
+    r: (n % 2 ? 1 : -1) * (4 + (n * 3) % 10), s: 1, by: state.name,
+  }]);
+  closeTray();
+  renderDecor();
+  const host = side === 'mine' ? $('editor') : $('pageYours').querySelector('.paper-body');
+  await saveDecor(host.querySelector(':scope > .decor-layer'));
+};
+
+$('btnDecor').onclick = (e) => {
+  e.stopPropagation();
+  $('tray').classList.contains('hidden') ? openTray(e.currentTarget, 'mine') : closeTray();
+};
+document.addEventListener('click', (e) => {
+  if (!$('tray').classList.contains('hidden')
+      && !e.target.closest('#tray') && !e.target.closest('#btnDecor')
+      && !e.target.closest('.head-decor')) closeTray();
+});
+
+// ---------- moving, turning and resizing a decoration ----------
+let decorAct = null;
+const deselectDecor = () =>
+  document.querySelectorAll('.decor-item.sel').forEach((x) => x.classList.remove('sel'));
+
+document.addEventListener('pointerdown', (e) => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    e.preventDefault();
+    const id = del.closest('.decor-layer').dataset.entry;
+    const entry = entryById(id);
+    if (!entry) return;
+    entry.decor = decorOf(entry).filter((_, i) => i !== +del.dataset.del);
+    renderDecor();   // rebuilds the layer, so re-find it before saving
+    const fresh = document.querySelector(`.decor-layer[data-entry="${id}"]`);
+    if (fresh) saveDecor(fresh);
+    return;
+  }
+  const item = e.target.closest('.decor-item');
+  if (!item) { deselectDecor(); return; }
+  e.preventDefault();
+  deselectDecor();
+  item.classList.add('sel');
+  const layer = item.closest('.decor-layer');
+  const entry = entryById(layer.dataset.entry);
+  const d = decorOf(entry)[+item.dataset.i];
+  if (!d) return;
+  const box = layer.getBoundingClientRect();
+  const cx = box.left + (d.x / 100) * box.width;
+  const cy = box.top + (d.y / 100) * box.height;
+  const rs = e.target.closest('[data-rs]');
+  decorAct = rs
+    ? { mode: 'turn', item, layer, d, cx, cy,
+        dist0: Math.hypot(e.clientX - cx, e.clientY - cy) || 1,
+        ang0: Math.atan2(e.clientY - cy, e.clientX - cx),
+        r0: d.r, s0: d.s }
+    : { mode: 'move', item, layer, d, box,
+        dx: e.clientX - cx, dy: e.clientY - cy };
+  (rs || item).setPointerCapture(e.pointerId);
+});
+
+document.addEventListener('pointermove', (e) => {
+  const a = decorAct;
+  if (!a) return;
+  if (a.mode === 'move') {
+    const box = a.layer.getBoundingClientRect();
+    a.d.x = Math.min(100, Math.max(0, ((e.clientX - a.dx - box.left) / box.width) * 100));
+    a.d.y = Math.min(100, Math.max(0, ((e.clientY - a.dy - box.top) / box.height) * 100));
+    a.item.style.left = a.d.x + '%';
+    a.item.style.top = a.d.y + '%';
+  } else {
+    const dist = Math.hypot(e.clientX - a.cx, e.clientY - a.cy);
+    const ang = Math.atan2(e.clientY - a.cy, e.clientX - a.cx);
+    a.d.s = Math.min(4, Math.max(0.4, (a.s0 * dist) / a.dist0));
+    a.d.r = Math.max(-180, Math.min(180,
+      a.r0 + ((ang - a.ang0) * 180) / Math.PI));
+    a.item.style.setProperty('--s', a.d.s.toFixed(2));
+    a.item.style.setProperty('--r', a.d.r.toFixed(1) + 'deg');
+  }
+});
+document.addEventListener('pointerup', () => {
+  if (!decorAct) return;
+  const layer = decorAct.layer;
+  decorAct = null;
+  saveDecor(layer);
 });
 
 // ---------- moving and resizing a photo ----------
@@ -1038,12 +1268,20 @@ function renderSpread(keepDraft = false) {
          <span class="who">${esc(yours.author)}</span>
          ${yours.mood ? `<span class="mood-shown">${yours.mood}</span>` : ''}
          <span class="time">${editedTag(yours)}</span>
+         <button class="head-decor" id="btnDecorYours" title="Leave a sticker">✨</button>
        </div>
        <div class="paper-body diary-type">${readingBlocks(yours)}</div>`
     : `<div class="page-head"><span class="who">${esc(who)}</span></div>
        <div class="page-empty">This page is still blank.<br>${esc(who)} hasn't written this day yet.</div>`;
+  const yb = $('btnDecorYours');
+  if (yb) yb.onclick = (e) => {
+    e.stopPropagation();
+    $('tray').classList.contains('hidden') ? openTray(e.currentTarget, 'yours') : closeTray();
+  };
 
-  // their prints get the same tilt and tape, once each image knows its size
+  renderDecor();
+
+  // their prints get the same tilt, once each image knows its size
   dressPhotos($('pageYours'));
   $('pageYours').querySelectorAll('.photo-block img').forEach((img) => {
     img.onload = () => dressPhotos($('pageYours'));
