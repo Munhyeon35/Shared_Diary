@@ -730,13 +730,27 @@ function sizeSheets(growOnly) {
     // always leave a little blank paper past the last thing, so there is
     // somewhere to drag to
     let want = Math.max(w * (SHEET_TALL / 100), low + w * 0.25);
-    // Mid-drag the paper may only lengthen. Letting it shrink makes the
-    // browser pull the scroll position back, which yanks whatever is being
-    // carried along with it.
-    if (growOnly) want = Math.max(want, parseFloat(inner.style.height) || 0);
+    const now = parseFloat(inner.style.height) || 0;
+    if (want < now) {
+      // Trimming blank paper off the end must never disturb what is on
+      // screen. The browser pulls the scroll back when a scroll container
+      // shrinks, so keep at least enough paper to reach the bottom of the
+      // current view; the rest is taken as soon as it scrolls out of sight.
+      if (growOnly) want = now;
+      else want = Math.max(want, host.scrollTop + host.clientHeight);
+    }
     inner.style.height = Math.round(want) + 'px';
   }
 }
+// Scrolling back up brings more of the empty tail out of view, so take it
+// then — below the fold, where removing it cannot be seen.
+let trimSoon = null;
+document.addEventListener('scroll', (e) => {
+  if (act || !e.target.classList || !e.target.classList.contains('paper-body')) return;
+  clearTimeout(trimSoon);
+  trimSoon = setTimeout(() => sizeSheets(), 120);
+}, true);
+
 addEventListener('resize', () => { sizeSheets(); });
 
 function renderTheirs() {
@@ -960,10 +974,7 @@ document.addEventListener('pointerup', () => {
   if (!act) return;
   const { side, moved, it, i } = act;
   act = null;
-  // Measure again, but never shorter: shortening the paper makes the browser
-  // pull the scroll back, and the page appears to jump to whatever was moved.
-  // It settles to its true length next time the page is drawn.
-  sizeSheets(true);
+  sizeSheets();   // safe to trim: it never cuts above the bottom of the view
   if (moved) commit(side);
   else if (side === 'mine' && it.k === 'text') beginEdit(i);   // a tap opens the box
 });
