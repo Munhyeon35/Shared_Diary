@@ -716,7 +716,7 @@ function renderMine() {
 // book never looks lopsided. Measured after painting, since a photo's height
 // is only known once the browser has laid it out.
 const SHEET_TALL = 100 / 0.72;     // a page's height, in width units
-function sizeSheets() {
+function sizeSheets(growOnly) {
   for (const host of [$('editor'), $('pageYours').querySelector('.paper-body')]) {
     const inner = innerOf(host);
     if (!inner) continue;
@@ -729,7 +729,12 @@ function sizeSheets() {
     });
     // always leave a little blank paper past the last thing, so there is
     // somewhere to drag to
-    inner.style.height = Math.round(Math.max(w * (SHEET_TALL / 100), low + w * 0.25)) + 'px';
+    let want = Math.max(w * (SHEET_TALL / 100), low + w * 0.25);
+    // Mid-drag the paper may only lengthen. Letting it shrink makes the
+    // browser pull the scroll position back, which yanks whatever is being
+    // carried along with it.
+    if (growOnly) want = Math.max(want, parseFloat(inner.style.height) || 0);
+    inner.style.height = Math.round(want) + 'px';
   }
 }
 addEventListener('resize', () => { sizeSheets(); });
@@ -897,7 +902,7 @@ document.addEventListener('pointerdown', (e) => {
 
   const box = host.getBoundingClientRect();
   const cx = box.left + (it.x / 100) * box.width;
-  const cy = box.top + (it.y / 100) * box.height;
+  const cy = box.top + (it.y / 100) * box.width;   // y is in width units
   const rs = e.target.closest('.ci-rs');
   const wd = e.target.closest('.ci-wd');
   act = {
@@ -924,10 +929,10 @@ document.addEventListener('pointermove', (e) => {
     act.el.style.left = act.it.x + '%';
     act.el.style.top = `calc(${act.it.y} * 1cqw)`;
     creepEdge(e.clientY);
-    sizeSheets();
+    sizeSheets(true);
   } else if (act.mode === 'turn') {
     const cx = box.left + (act.it.x / 100) * box.width;
-    const cy = box.top + (act.it.y / 100) * box.height;
+    const cy = box.top + (act.it.y / 100) * box.width;
     const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
     const ang = Math.atan2(e.clientY - cy, e.clientX - cx);
     act.it.s = Math.min(6, Math.max(0.2, (act.s0 * dist) / act.dist0));
@@ -940,21 +945,22 @@ document.addEventListener('pointermove', (e) => {
   }
 });
 
-// Dragging against the top or bottom edge scrolls the sheet, so a thing can
-// be carried past what is currently in view.
+// Carrying something past the edge of the page scrolls the sheet after it.
+// Only past the edge: a margin inside the page would drag things downward on
+// its own whenever a tall photo was picked up near the bottom.
 function creepEdge(clientY) {
   const sheet = act && act.host.parentElement;
   if (!sheet) return;
   const r = sheet.getBoundingClientRect();
-  const edge = 44;
-  if (clientY > r.bottom - edge) sheet.scrollTop += Math.min(18, clientY - (r.bottom - edge));
-  else if (clientY < r.top + edge) sheet.scrollTop -= Math.min(18, (r.top + edge) - clientY);
+  if (clientY > r.bottom) sheet.scrollTop += Math.min(16, clientY - r.bottom);
+  else if (clientY < r.top) sheet.scrollTop -= Math.min(16, r.top - clientY);
 }
 
 document.addEventListener('pointerup', () => {
   if (!act) return;
   const { side, moved, it, i } = act;
   act = null;
+  sizeSheets();
   if (moved) commit(side);
   else if (side === 'mine' && it.k === 'text') beginEdit(i);   // a tap opens the box
 });
