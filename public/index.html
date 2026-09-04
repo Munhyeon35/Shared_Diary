@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Our Diary">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Our Diary</title>
 <style>
   :root {
@@ -1239,6 +1239,12 @@ async function enterMain() {
   try { await refresh(); } catch {}
   renderSpread();
 }
+// The shell is cached so the diary opens without a signal; the diary itself
+// is always fetched fresh.
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 if (state.code && state.name) enterMain();
 else $('setup').classList.remove('hidden');
 
