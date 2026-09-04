@@ -710,7 +710,7 @@ function renderMine() {
   paintPage($('editor'), state.items, 'mine');
   $('editor').classList.toggle('empty', !state.items.length);
   sizeSheets();
-  $('editor').querySelectorAll('img').forEach((img) => { img.onload = sizeSheets; });
+  $('editor').querySelectorAll('img').forEach((img) => { img.onload = () => sizeSheets(); });
 }
 // The sheet is as tall as it needs to be, and both facing pages match so the
 // book never looks lopsided. Measured after painting, since a photo's height
@@ -745,7 +745,7 @@ function renderTheirs() {
   if (host && yours) {
     paintPage(host, itemsOf(yours), 'yours');
     host.dataset.entry = yours.id;
-    host.querySelectorAll('img').forEach((img) => { img.onload = sizeSheets; });
+    host.querySelectorAll('img').forEach((img) => { img.onload = () => sizeSheets(); });
   }
   sizeSheets();
 }
@@ -960,7 +960,10 @@ document.addEventListener('pointerup', () => {
   if (!act) return;
   const { side, moved, it, i } = act;
   act = null;
-  sizeSheets();
+  // Measure again, but never shorter: shortening the paper makes the browser
+  // pull the scroll back, and the page appears to jump to whatever was moved.
+  // It settles to its true length next time the page is drawn.
+  sizeSheets(true);
   if (moved) commit(side);
   else if (side === 'mine' && it.k === 'text') beginEdit(i);   // a tap opens the box
 });
