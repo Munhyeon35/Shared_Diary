@@ -63,6 +63,11 @@ async function withBrowser(fn) {
       await cdp.send('Page.reload');
       await sleep(1200);
     },
+    // Runs `expr` in every new document, before the page's own scripts —
+    // survives reload, unlike an injection made with eval() after the fact.
+    before(expr) {
+      return cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: expr });
+    },
     async eval(expr) {
       const evaluate = (expression) => cdp.send('Runtime.evaluate', {
         expression, returnByValue: true, awaitPromise: true,

@@ -126,6 +126,28 @@ test('offline: says so, and the copy is not wiped', async (page) => {
   check(await page.eval(`document.getElementById('offlineTag').hidden`), 'still marked offline after reconnecting');
 });
 
+// ---- a store that refuses to open must not refuse the app ----
+test('a store that will not open costs the copy, not the app', async (page) => {
+  await page.goto();   // establish the origin first so localStorage exists
+  await page.eval(`localStorage.setItem('code','loveu');localStorage.setItem('name','me')`);
+  // Registered via Page.addScriptToEvaluateOnNewDocument, this runs before
+  // the page's own scripts on every future document load, including the
+  // reload below — unlike an eval() injection, which a reload would erase
+  // before store.js ever saw it.
+  await page.before(`Object.defineProperty(indexedDB, 'open', { value: () => {
+    const req = {};
+    setTimeout(() => { req.error = new Error('blocked'); req.onerror && req.onerror(); }, 0);
+    return req;
+  }})`);
+  await page.reload();
+  await page.sleep(900);
+
+  check(await page.eval(`!!document.querySelector('.book')`), 'the app refused to open');
+  check(await page.eval(`state.entries.length`) > 0, 'the server pull did not happen');
+  check(await page.eval(`Store.usable()`) === false, 'Store claimed to be usable');
+  check(page.errors.length === 0, 'unhandled page errors: ' + page.errors.join(' | '));
+});
+
 (async () => {
   console.log(`chrome ${CDP_URL}   app ${APP_URL}\n`);
   let failed = 0;
