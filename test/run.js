@@ -67,6 +67,31 @@ test('store: meta round-trips and survives a reload', async (page) => {
   check(await page.eval(`Store.getMeta('nope')`) === undefined, 'a missing key was not undefined');
 });
 
+// ---- the store must let go when another tab needs it, and recover after ----
+test('store: an open tab does not block a newer version of the store from opening', async (page) => {
+  await asMe(page);
+  await page.eval(`Store.usable()`);   // this tab now holds its connection, as a stage-1 tab would
+  const next = await page.openTab();   // e.g. stage 2 opening in a second tab of the same phone
+  await next.goto();
+  const r = await next.eval(`new Promise((res) => {
+    const q = indexedDB.open('our-diary', 2);
+    q.onsuccess = () => { q.result.close(); res('upgraded'); };
+    q.onerror = () => res('failed: ' + q.error);
+    setTimeout(() => res('still blocked after 3 s'), 3000);
+  })`);
+  check(r === 'upgraded', 'opening the store at version 2 was ' + r);
+});
+
+test('store: a connection closed under the app is opened again, not left dead', async (page) => {
+  await asMe(page);
+  check(await page.eval(`Store.usable()`) === true, 'the store did not open to begin with');
+  // what "clear site data" does to an open tab: the browser closes its connection
+  await page.send('Storage.clearDataForOrigin', { origin: new URL(APP_URL).origin, storageTypes: 'indexeddb' });
+  await page.sleep(300);
+  const r = await page.eval(`Store.allEntries().then((a) => 'read ' + a.length, (e) => 'rejected: ' + e)`);
+  check(r.startsWith('read '), 'after its connection was closed the store ' + r);
+});
+
 // ---- eval() wraps top-level await on evidence, not on a text guess ----
 test('eval: a multi-statement expression with "await" inside a string is left alone', async (page) => {
   await page.goto();

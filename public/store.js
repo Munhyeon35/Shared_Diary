@@ -22,7 +22,16 @@
         if (!db.objectStoreNames.contains(ENTRIES)) db.createObjectStore(ENTRIES, { keyPath: 'id' });
         if (!db.objectStoreNames.contains(META)) db.createObjectStore(META);
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // Another tab wants a newer version (stage 2) or to delete the store:
+        // let go, or it waits on this tab forever. The next call opens afresh.
+        db.onversionchange = () => { db.close(); opening = null; };
+        // The browser closed it (site data cleared): forget it, or every
+        // later call fails on a dead connection for the life of the tab.
+        db.onclose = () => { opening = null; };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error || new Error('indexedDB refused to open'));
       req.onblocked = () => reject(new Error('indexedDB blocked'));
     });
