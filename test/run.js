@@ -94,6 +94,38 @@ test('what the server returns is written into the copy', async (page) => {
   check(same.match, `copy ${same.local} did not match server ${same.server}`);
 });
 
+// ---- reading with no signal at all ----
+test('offline: the diary still opens and shows its entries', async (page) => {
+  await asMe(page);
+  await page.sleep(800);
+  const before = await page.eval(`state.entries.length`);
+  check(before > 0, 'no entries to begin with — is the server running with data?');
+
+  await page.offline(true);
+  await page.reload();
+  await page.sleep(600);
+  check(await page.eval(`!!document.querySelector('.book')`), 'the book did not draw offline');
+  const after = await page.eval(`state.entries.length`);
+  check(after === before, `offline showed ${after} entries, online had ${before}`);
+  await page.offline(false);
+});
+
+test('offline: says so, and the copy is not wiped', async (page) => {
+  await asMe(page);
+  await page.sleep(800);
+  await page.offline(true);
+  await page.reload();
+  await page.sleep(600);
+  check(await page.eval(`!document.getElementById('offlineTag').hidden`), 'no offline marker');
+  const kept = await page.eval(`(async () => (await Store.allEntries()).length)()`);
+  check(kept > 0, 'the copy was emptied while offline');
+
+  await page.offline(false);
+  await page.eval(`refresh()`);
+  await page.sleep(400);
+  check(await page.eval(`document.getElementById('offlineTag').hidden`), 'still marked offline after reconnecting');
+});
+
 (async () => {
   console.log(`chrome ${CDP_URL}   app ${APP_URL}\n`);
   let failed = 0;

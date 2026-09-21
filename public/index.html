@@ -84,6 +84,11 @@
   header h1 { font-family: var(--serif); font-size: 20px; font-weight: 600; letter-spacing: 0.2px; }
   header h1 .heart { color: var(--me); }
   #daysBadge { font-size: 12px; color: var(--ink-soft); }
+  #offlineTag {
+    margin-left: auto; font-size: 11px; font-weight: 700;
+    color: var(--on-me); background: var(--ink-soft);
+    padding: 2px 8px; border-radius: 20px;
+  }
 
   /* ---- setup (first-run) screen ---- */
   .setup {
@@ -438,6 +443,7 @@
 <div id="app">
   <header>
     <h1>Our Diary <span class="heart">♥</span></h1>
+    <span id="offlineTag" hidden>오프라인</span>
     <span id="daysBadge"></span>
   </header>
 
@@ -1224,6 +1230,7 @@ function updateDaysBadge() {
   const days = Math.floor((Date.now() - parseDate(dates[0])) / 86400000) + 1;
   $('daysBadge').textContent = `Day ${days} of our diary`;
 }
+function setOnline(ok) { $('offlineTag').hidden = !!ok; }
 
 // The copy on this device, drawn before we go asking the server.
 async function loadLocal() {
@@ -1235,11 +1242,18 @@ async function loadLocal() {
 }
 
 async function refresh() {
-  const { entries } = await api('/api/entries');   // throws with no network
+  let entries;
+  try {
+    ({ entries } = await api('/api/entries'));
+  } catch (e) {
+    setOnline(false);
+    throw e;
+  }
+  setOnline(true);
   state.entries = entries;
   updateDaysBadge();
   // keeping the copy is best effort: failing to write it must not fail the pull
-  try { await Store.replaceAll(entries); } catch (e) { console.warn('local copy not written', e); }
+  try { await Store.replaceAll(entries); } catch (err) { console.warn('local copy not written', err); }
 }
 function toast(msg) {
   $('toast').textContent = msg;
