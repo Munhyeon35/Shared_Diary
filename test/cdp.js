@@ -64,8 +64,11 @@ async function withBrowser(fn) {
       await sleep(1200);
     },
     async eval(expr) {
+      // A bare top-level `await` is a syntax error outside a module/REPL
+      // context; wrap it in an async IIFE so tests can write it plainly.
+      const wrapped = /\bawait\b/.test(expr) ? `(async () => (${expr}))()` : expr;
       const r = await cdp.send('Runtime.evaluate', {
-        expression: expr, returnByValue: true, awaitPromise: true,
+        expression: wrapped, returnByValue: true, awaitPromise: true,
       });
       if (r.exceptionDetails) {
         throw new Error('page threw: '
