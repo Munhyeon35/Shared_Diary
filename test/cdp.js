@@ -64,15 +64,28 @@ async function withBrowser(fn) {
       await sleep(1200);
     },
     async eval(expr) {
-      // A bare top-level `await` is a syntax error outside a module/REPL
-      // context; wrap it in an async IIFE so tests can write it plainly.
-      const wrapped = /\bawait\b/.test(expr) ? `(async () => (${expr}))()` : expr;
-      const r = await cdp.send('Runtime.evaluate', {
-        expression: wrapped, returnByValue: true, awaitPromise: true,
+      const evaluate = (expression) => cdp.send('Runtime.evaluate', {
+        expression, returnByValue: true, awaitPromise: true,
       });
+      const describe = (res) => res.exceptionDetails
+        && (res.exceptionDetails.exception?.description || res.exceptionDetails.text);
+
+      let r = await evaluate(expr);
+      // A bare top-level `await` is a syntax error outside a module/REPL
+      // context. Retry once, wrapped in an async IIFE — but only on
+      // evidence (this first, unwrapped attempt actually failed to parse),
+      // never by guessing from the source text: a multi-statement
+      // expression that merely contains the word "await" (in a string,
+      // say) must be left alone, since parentheses can't hold a statement
+      // sequence. A syntax error always happens before any code runs, so
+      // retrying here can't double up side effects.
+      if (/SyntaxError/.test(describe(r) || '')) {
+        const retry = await evaluate(`(async () => (${expr}))()`);
+        if (!describe(retry)) r = retry;
+      }
+
       if (r.exceptionDetails) {
-        throw new Error('page threw: '
-          + (r.exceptionDetails.exception?.description || r.exceptionDetails.text));
+        throw new Error('page threw: ' + describe(r));
       }
       return r.result.value;
     },

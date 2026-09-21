@@ -62,6 +62,19 @@ test('store: meta round-trips and survives a reload', async (page) => {
   check(await page.eval(`Store.getMeta('nope')`) === undefined, 'a missing key was not undefined');
 });
 
+// ---- eval() wraps top-level await on evidence, not on a text guess ----
+test('eval: a multi-statement expression with "await" inside a string is left alone', async (page) => {
+  await page.goto();
+  const r = await page.eval(`const note = 'please await this'; note === 'please await this'`);
+  check(r === true, 'multi-statement eval with "await" inside a string literal broke: got ' + r);
+});
+
+test('eval: a genuine top-level await is still wrapped and resolved', async (page) => {
+  await page.goto();
+  const r = await page.eval(`(await Promise.resolve(21)) * 2`);
+  check(r === 42, 'top-level await was not resolved: got ' + r);
+});
+
 (async () => {
   console.log(`chrome ${CDP_URL}   app ${APP_URL}\n`);
   let failed = 0;
