@@ -80,6 +80,34 @@ test('eval: a genuine top-level await is still wrapped and resolved', async (pag
   check(r === 42, 'top-level await was not resolved: got ' + r);
 });
 
+// ---- the harness itself: it must never hang, and tests must not share storage ----
+test('harness: a call Chrome never answers fails, naming the call, instead of hanging', async (page) => {
+  await page.goto();
+  let err = null;
+  try {
+    await page.send('Runtime.evaluate', { expression: 'new Promise(() => {})', awaitPromise: true }, { timeout: 500 });
+  } catch (e) { err = e.message; }
+  check(err && err.includes('Runtime.evaluate'), 'a call that never got an answer gave: ' + err);
+});
+
+test("harness: a tab another test leaves open cannot reach this test's storage", async (page) => {
+  await asMe(page);
+  await page.eval(`Store.usable()`);   // this tab now holds an IndexedDB connection, as a leaked tab would
+  const seen = await withBrowser(async (other) => {
+    await other.goto();
+    return other.eval(`(async () => ({
+      code: localStorage.getItem('code'),
+      deleted: await new Promise((res) => {
+        const q = indexedDB.deleteDatabase('our-diary');
+        q.onsuccess = () => res('deleted');
+        q.onblocked = () => res('blocked');
+      }),
+    }))()`);
+  });
+  check(seen.code === null, "a fresh test saw the other test's login: " + seen.code);
+  check(seen.deleted === 'deleted', 'deleting its own store was ' + seen.deleted);
+});
+
 test('what the server returns is written into the copy', async (page) => {
   await asMe(page);
   await page.eval(`indexedDB.deleteDatabase('our-diary')`);
