@@ -31,8 +31,13 @@ test('store: reports itself usable', async (page) => {
 test('store: starts empty, round-trips entries', async (page) => {
   await asMe(page);
   await page.eval(`indexedDB.deleteDatabase('our-diary')`);
+  // offline: since Task 3, a reload also fires refresh(), which writes
+  // whatever the server returns into the store. Without this the write-through
+  // races this exact check and the store is no longer empty by the time we look.
+  await page.offline(true);
   await page.reload();
   check((await page.eval(`(await Store.allEntries()).length`)) === 0, 'a fresh store was not empty');
+  await page.offline(false);
 
   await page.eval(`Store.replaceAll([
     {id:'aaaaaaaaaaaaaaaa', author:'me',     date:'2026-09-01', items:[]},
@@ -73,6 +78,20 @@ test('eval: a genuine top-level await is still wrapped and resolved', async (pag
   await page.goto();
   const r = await page.eval(`(await Promise.resolve(21)) * 2`);
   check(r === 42, 'top-level await was not resolved: got ' + r);
+});
+
+test('what the server returns is written into the copy', async (page) => {
+  await asMe(page);
+  await page.eval(`indexedDB.deleteDatabase('our-diary')`);
+  await page.reload();
+  await page.sleep(800);
+  const same = await page.eval(`(async () => {
+    const local = (await Store.allEntries()).map(e => e.id).sort().join(',');
+    const server = state.entries.map(e => e.id).sort().join(',');
+    return { local, server, match: local === server && server.length > 0 };
+  })()`);
+  check(same.server.length > 0, 'the server returned nothing — is it running with the three entries?');
+  check(same.match, `copy ${same.local} did not match server ${same.server}`);
 });
 
 (async () => {

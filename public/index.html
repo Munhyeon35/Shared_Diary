@@ -1218,14 +1218,28 @@ $('viewer').onclick = (e) => {
 };
 
 // ---------- sync ----------
+function updateDaysBadge() {
+  const dates = state.entries.map((e) => e.date).sort();
+  if (!dates.length) return;
+  const days = Math.floor((Date.now() - parseDate(dates[0])) / 86400000) + 1;
+  $('daysBadge').textContent = `Day ${days} of our diary`;
+}
+
+// The copy on this device, drawn before we go asking the server.
+async function loadLocal() {
+  try {
+    const local = await Store.allEntries();
+    if (local.length) { state.entries = local; updateDaysBadge(); }
+    return local.length;
+  } catch { return 0; }            // no store is survivable in stage 1
+}
+
 async function refresh() {
-  const { entries } = await api('/api/entries');
+  const { entries } = await api('/api/entries');   // throws with no network
   state.entries = entries;
-  const dates = entries.map((e) => e.date).sort();
-  if (dates.length) {
-    const days = Math.floor((Date.now() - parseDate(dates[0])) / 86400000) + 1;
-    $('daysBadge').textContent = `Day ${days} of our diary`;
-  }
+  updateDaysBadge();
+  // keeping the copy is best effort: failing to write it must not fail the pull
+  try { await Store.replaceAll(entries); } catch (e) { console.warn('local copy not written', e); }
 }
 function toast(msg) {
   $('toast').textContent = msg;
@@ -1237,8 +1251,9 @@ async function enterMain() {
   $('setup').classList.add('hidden');
   $('main').classList.remove('hidden');
   state.date = localDate();
-  try { await refresh(); } catch {}
-  renderSpread();
+  await loadLocal();
+  renderSpread();                  // the diary is on screen before the network is asked
+  try { await refresh(); renderSpread(); } catch {}
 }
 // The shell is cached so the diary opens without a signal; the diary itself
 // is always fetched fresh.
