@@ -6,13 +6,32 @@ function check(cond, message) {
   if (!cond) throw new Error(message);
 }
 
+// What is on screen, not just what is in memory: the date bar, the header's
+// day count, and how many things the book shows once opened at the newest day
+// the diary holds. goTo() only offers to save an unsaved page, and this never
+// runs on one, so it cannot write.
+const onScreen = (page) => page.eval(`(async () => {
+  const shown = { date: $('dateLabel').textContent, badge: $('daysBadge').textContent, newestDay: null };
+  const newest = state.entries.map((e) => e.date).sort().pop();
+  if (newest && !state.dirty) {
+    await goTo(newest);
+    shown.newestDay = document.querySelectorAll('.book .ci').length;
+  }
+  return shown;
+})()`);
+const checkDrawn = (shown, when) => {
+  check(shown.date !== '', `no date was drawn ${when}`);
+  check(/^Day \d+ of our diary$/.test(shown.badge), `the day count read "${shown.badge}" ${when}`);
+  check(shown.newestDay > 0, `the newest day drew nothing ${when}`);
+};
+
 // ---- the app must at least come up ----
 test('the app loads and draws the book', async (page) => {
   await page.goto();   // localStorage only exists once we are on the app's origin
   await page.eval(`localStorage.setItem('code','loveu');localStorage.setItem('name','me')`);
   await page.reload();
-  check(await page.eval(`!!document.querySelector('.book')`), 'the book did not draw');
   check(await page.eval(`document.title`) === 'Our Diary', 'wrong title');
+  checkDrawn(await onScreen(page), 'on opening');
   check(page.errors.length === 0, 'page errors: ' + page.errors.join(' | '));
 });
 
@@ -147,20 +166,6 @@ test('what the server returns is written into the copy', async (page) => {
   check(same.match, `copy ${same.local} did not match server ${same.server}`);
 });
 
-// What is on screen, not just what is in memory: the date bar, the header's
-// day count, and how many things the book shows once opened at the newest day
-// the diary holds. goTo() only offers to save an unsaved page, and this never
-// runs on one, so it cannot write.
-const onScreen = (page) => page.eval(`(async () => {
-  const shown = { date: $('dateLabel').textContent, badge: $('daysBadge').textContent, newestDay: null };
-  const newest = state.entries.map((e) => e.date).sort().pop();
-  if (newest && !state.dirty) {
-    await goTo(newest);
-    shown.newestDay = document.querySelectorAll('.book .ci').length;
-  }
-  return shown;
-})()`);
-
 // ---- the startup pull: the page is on screen, and can be written in, while it is out ----
 test('a slow startup pull keeps what was laid on the page meanwhile', async (page) => {
   await asMe(page);   // the copy now holds the diary, so the next load draws before it pulls
@@ -205,10 +210,7 @@ test('a store that never answers does not hold up the server', async (page) => {
   await page.reload();
   await page.sleep(1800);   // 3 s since the reload began
   check(await page.eval(`state.entries.length`) > 0, 'the server pull never happened');
-  const shown = await onScreen(page);
-  check(shown.date !== '', 'no date was drawn');
-  check(/^Day \d+ of our diary$/.test(shown.badge), `the day count read "${shown.badge}"`);
-  check(shown.newestDay > 0, 'the newest day drew nothing');
+  checkDrawn(await onScreen(page), 'with a store that never answers');
   // keeping the copy is best effort, so a pull must not wait on it either
   const pull = await page.eval(`Promise.race([
     refresh().then(() => 'settled'),
@@ -253,8 +255,8 @@ test('offline: the diary still opens and shows its entries', async (page) => {
   await page.offline(true);
   await page.reload();
   await page.sleep(600);
-  check(await page.eval(`!!document.querySelector('.book')`), 'the book did not draw offline');
   const after = await page.eval(`state.entries.length`);
+  checkDrawn(await onScreen(page), 'offline');
   check(after === before, `offline showed ${after} entries, online had ${before}`);
   await page.offline(false);
 });
@@ -291,8 +293,8 @@ test('a store that will not open costs the copy, not the app', async (page) => {
   await page.reload();
   await page.sleep(900);
 
-  check(await page.eval(`!!document.querySelector('.book')`), 'the app refused to open');
   check(await page.eval(`state.entries.length`) > 0, 'the server pull did not happen');
+  checkDrawn(await onScreen(page), 'without a store');
   check(await page.eval(`Store.usable()`) === false, 'Store claimed to be usable');
   check(page.errors.length === 0, 'unhandled page errors: ' + page.errors.join(' | '));
 });
@@ -302,7 +304,11 @@ test('a store that will not open costs the copy, not the app', async (page) => {
   let failed = 0;
   for (const c of cases) {
     try {
-      await withBrowser(c.fn);
+      await withBrowser(async (page) => {
+        await c.fn(page);
+        // every test, whatever it checks, fails on an uncaught page error
+        check(page.errors.length === 0, 'unhandled page errors: ' + page.errors.join(' | '));
+      });
       console.log(`  pass  ${c.name}`);
     } catch (e) {
       failed++;

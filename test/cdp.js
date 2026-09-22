@@ -85,22 +85,39 @@ async function withBrowser(fn) {
   })).json();
   // Contexts are made on the browser's own socket, not a tab's.
   const cdp = await connect(version.webSocketDebuggerUrl);
-  const ctx = { cdp, contextId: null };
+  const ctx = { cdp, contextId: null, errors: [], workers: new Map() };
   live.add(ctx);
   try {
     // disposeOnDetach: if this process dies before its finally runs, Chrome
     // throws the context away itself the moment this socket drops.
     ({ browserContextId: ctx.contextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true }));
-    const page = await openTab(cdp, ctx.contextId, []);
+    const page = await openTab(ctx);
     return await fn(page);
   } finally {
     await dispose(ctx);
   }
 }
 
+// DevTools sessions on the context's service workers, attaching to any that
+// started since the last look and dropping any that have gone.
+async function workerSessions(ctx) {
+  const { cdp, contextId, workers } = ctx;
+  const { targetInfos } = await cdp.send('Target.getTargets');
+  const running = targetInfos.filter((t) => t.type === 'service_worker' && t.browserContextId === contextId);
+  for (const id of workers.keys()) if (!running.some((t) => t.targetId === id)) workers.delete(id);
+  for (const t of running) {
+    if (workers.has(t.targetId)) continue;
+    const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: t.targetId, flatten: true });
+    await cdp.send('Network.enable', {}, { sessionId });
+    workers.set(t.targetId, sessionId);
+  }
+  return [...workers.values()];
+}
+
 // A tab in the given context. Tabs of one context share storage, like two
 // tabs of the app open on the same phone, and share one list of page errors.
-async function openTab(cdp, contextId, errors) {
+async function openTab(ctx) {
+  const { cdp, contextId, errors } = ctx;
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank', browserContextId: contextId });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params, opts = {}) => cdp.send(method, params, { ...opts, sessionId });
@@ -125,7 +142,7 @@ async function openTab(cdp, contextId, errors) {
     // raw DevTools call on this tab, for what the helpers below do not cover
     send,
     // another tab in this same context — same origin storage as this one
-    openTab: () => openTab(cdp, contextId, errors),
+    openTab: () => openTab(ctx),
     async goto(url = APP_URL) {
       await send('Page.navigate', { url });
       await sleep(1200);
@@ -165,12 +182,19 @@ async function openTab(cdp, contextId, errors) {
       }
       return r.result.value;
     },
-    offline(on) {
-      return send('Network.emulateNetworkConditions', {
+    async offline(on) {
+      const conditions = {
         offline: !!on, latency: 0,
         downloadThroughput: on ? 0 : -1,
         uploadThroughput: on ? 0 : -1,
-      });
+      };
+      await send('Network.emulateNetworkConditions', conditions);
+      // Emulation on the tab does not reach the fetches the service worker
+      // makes for it, so without this an "offline" tab still gets its shell
+      // from the live server and a missing cache entry goes unnoticed.
+      for (const sessionId of await workerSessions(ctx)) {
+        await cdp.send('Network.emulateNetworkConditions', conditions, { sessionId });
+      }
     },
     viewport(width, height) {
       return send('Emulation.setDeviceMetricsOverride', {
