@@ -147,6 +147,102 @@ test('what the server returns is written into the copy', async (page) => {
   check(same.match, `copy ${same.local} did not match server ${same.server}`);
 });
 
+// What is on screen, not just what is in memory: the date bar, the header's
+// day count, and how many things the book shows once opened at the newest day
+// the diary holds. goTo() only offers to save an unsaved page, and this never
+// runs on one, so it cannot write.
+const onScreen = (page) => page.eval(`(async () => {
+  const shown = { date: $('dateLabel').textContent, badge: $('daysBadge').textContent, newestDay: null };
+  const newest = state.entries.map((e) => e.date).sort().pop();
+  if (newest && !state.dirty) {
+    await goTo(newest);
+    shown.newestDay = document.querySelectorAll('.book .ci').length;
+  }
+  return shown;
+})()`);
+
+// ---- the startup pull: the page is on screen, and can be written in, while it is out ----
+test('a slow startup pull keeps what was laid on the page meanwhile', async (page) => {
+  await asMe(page);   // the copy now holds the diary, so the next load draws before it pulls
+  // Hold the pull until the test lets it go, and refuse any write outright,
+  // so nothing in here can reach the diary on the server.
+  await page.before(`(() => {
+    const f = window.fetch;
+    let release;
+    const held = new Promise((r) => { release = r; });
+    window.__releasePull = release;
+    window.__pullsLanded = 0;
+    window.fetch = (u, o = {}) => {
+      if ((o.method || 'GET') !== 'GET') return Promise.reject(new Error('test: no writes'));
+      if (!String(u).includes('/api/entries')) return f(u, o);
+      return held.then(() => f(u, o)).then((r) => { window.__pullsLanded++; return r; });
+    };
+  })()`);
+  await page.reload();
+  check(await page.eval(`$('dateLabel').textContent`) !== '', 'the page was not drawn from the copy before the pull');
+  // a sticker laid on my page, the way the tray lays one
+  await page.eval(`addItem('mine', { k: 'sticker', v: '⭐', ...dropSpot(state.items.length) }); true`);
+  await page.eval(`__releasePull(); true`);
+  await page.sleep(800);
+  const after = await page.eval(`({
+    landed: __pullsLanded,
+    kept: state.items.some((it) => it.v === '⭐'),
+    drawn: !!document.querySelector('#editor .ci-sticker'),
+    dirty: state.dirty,
+    note: $('savedNote').textContent,
+  })`);
+  check(after.landed > 0, 'the held pull never landed');
+  check(after.kept && after.drawn, 'the sticker laid during the pull is gone from the page');
+  check(after.dirty === true, 'the page no longer counts as unsaved, so leaving it will not warn');
+  check(after.note === 'Unsaved', `the page says "${after.note}", not "Unsaved"`);
+});
+
+test('a store that never answers does not hold up the server', async (page) => {
+  await page.goto();
+  await page.eval(`localStorage.setItem('code','loveu');localStorage.setItem('name','me')`);
+  // an open that neither succeeds nor fails, ever
+  await page.before(`Object.defineProperty(indexedDB, 'open', { value: () => ({}) })`);
+  await page.reload();
+  await page.sleep(1800);   // 3 s since the reload began
+  check(await page.eval(`state.entries.length`) > 0, 'the server pull never happened');
+  const shown = await onScreen(page);
+  check(shown.date !== '', 'no date was drawn');
+  check(/^Day \d+ of our diary$/.test(shown.badge), `the day count read "${shown.badge}"`);
+  check(shown.newestDay > 0, 'the newest day drew nothing');
+  // keeping the copy is best effort, so a pull must not wait on it either
+  const pull = await page.eval(`Promise.race([
+    refresh().then(() => 'settled'),
+    new Promise((r) => setTimeout(() => r('was still waiting on the store after 2 s'), 2000)),
+  ])`);
+  check(pull === 'settled', 'a pull ' + pull);
+});
+
+test('a copy that answers late does not overwrite what the server already sent', async (page) => {
+  await asMe(page);
+  // a copy older than the server: a single made-up page
+  await page.eval(`Store.replaceAll([{ id: 'stale00000000001', author: 'me', date: '2026-01-01', items: [] }])`);
+  // The store now takes 2.5 s to open — past the wait for it, and past the pull.
+  await page.before(`(() => {
+    const open = IDBFactory.prototype.open;
+    Object.defineProperty(indexedDB, 'open', { value: (...args) => {
+      const slow = {};
+      setTimeout(() => {
+        const req = open.apply(indexedDB, args);
+        req.onupgradeneeded = () => { slow.result = req.result; slow.onupgradeneeded && slow.onupgradeneeded(); };
+        req.onsuccess = () => { slow.result = req.result; slow.onsuccess && slow.onsuccess(); };
+        req.onerror = () => { slow.error = req.error; slow.onerror && slow.onerror(); };
+        req.onblocked = () => { slow.onblocked && slow.onblocked(); };
+      }, 2500);
+      return slow;
+    }});
+  })()`);
+  await page.reload();
+  await page.sleep(2800);   // 4 s since the reload began: the copy has answered by now
+  const ids = await page.eval(`state.entries.map((e) => e.id)`);
+  check(ids.length > 0, 'nothing was pulled');
+  check(!ids.includes('stale00000000001'), 'the late copy replaced what the server sent: ' + ids.join(','));
+});
+
 // ---- reading with no signal at all ----
 test('offline: the diary still opens and shows its entries', async (page) => {
   await asMe(page);

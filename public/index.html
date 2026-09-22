@@ -1232,10 +1232,16 @@ function updateDaysBadge() {
 }
 function setOnline(ok) { $('offlineTag').hidden = !!ok; }
 
+// How many pulls the server has answered. A read of the copy that comes back
+// after one has is older than what is already on screen.
+let pullsLanded = 0;
+
 // The copy on this device, drawn before we go asking the server.
 async function loadLocal() {
+  const asked = pullsLanded;
   try {
     const local = await Store.allEntries();
+    if (pullsLanded !== asked) return 0;   // the server got there first
     if (local.length) { state.entries = local; updateDaysBadge(); }
     return local.length;
   } catch { return 0; }            // no store is survivable in stage 1
@@ -1251,9 +1257,12 @@ async function refresh() {
   }
   setOnline(true);
   state.entries = entries;
+  pullsLanded++;
   updateDaysBadge();
-  // keeping the copy is best effort: failing to write it must not fail the pull
-  try { await Store.replaceAll(entries); } catch (err) { console.warn('local copy not written', err); }
+  // keeping the copy is best effort: failing to write it must not fail the
+  // pull, and a store that never answers must not hold the pull up either
+  Promise.resolve().then(() => Store.replaceAll(entries))
+    .catch((err) => console.warn('local copy not written', err));
 }
 function toast(msg) {
   $('toast').textContent = msg;
@@ -1261,13 +1270,25 @@ function toast(msg) {
   clearTimeout(toast.t);
   toast.t = setTimeout(() => $('toast').classList.remove('on'), 2200);
 }
+// How long the copy gets before the server is asked without it: a store that
+// never answers (older iOS Safari could hang on its first open) must not keep
+// a healthy server waiting.
+const LOCAL_WAIT_MS = 1000;
+
 async function enterMain() {
   $('setup').classList.add('hidden');
   $('main').classList.remove('hidden');
   state.date = localDate();
-  await loadLocal();
+  const local = loadLocal();
+  const inTime = await Promise.race([
+    local.then(() => true),
+    new Promise((r) => setTimeout(() => r(false), LOCAL_WAIT_MS)),
+  ]);
   renderSpread();                  // the diary is on screen before the network is asked
-  try { await refresh(); renderSpread(); } catch {}
+  // From here the page is on screen and can be written in, so what arrives
+  // later — a slow copy, then the pull — must keep the draft (keepDraft).
+  if (!inTime) local.then((n) => { if (n) renderSpread(true); });
+  try { await refresh(); renderSpread(true); } catch {}
 }
 // The shell is cached so the diary opens without a signal; the diary itself
 // is always fetched fresh.
