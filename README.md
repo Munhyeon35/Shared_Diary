@@ -19,6 +19,23 @@ COUPLE_CODE=둘만아는코드 PORT=3000 node server.js
 데이터는 `./data/entries.json`(글)과 `./data/photos/`(사진 파일)에 저장됩니다.
 백업은 `data/` 디렉터리만 복사하면 끝.
 
+## 테스트
+
+브라우저 동작을 실제 Chrome으로 검증합니다. 의존성은 없습니다.
+
+```bash
+# 1. 디버그 포트를 연 Chrome
+chrome --headless=new --remote-debugging-port=9222 about:blank &
+
+# 2. 서버
+COUPLE_CODE=loveu PORT=3000 node server.js &
+
+# 3. 테스트
+node test/run.js
+```
+
+`CDP_URL`, `APP_URL` 환경변수로 주소를 바꿀 수 있습니다.
+
 ## 둘이 실제로 쓰려면 (배포)
 
 인터넷에서 접근 가능한 곳에 올려야 합니다. 무료로 가능한 순서대로:
