@@ -277,6 +277,38 @@ test('offline: says so, and the copy is not wiped', async (page) => {
   check(await page.eval(`document.getElementById('offlineTag').hidden`), 'still marked offline after reconnecting');
 });
 
+// ---- the first visit must leave everything needed to open with no signal ----
+test('the first visit caches the whole shell, store.js included', async (page) => {
+  await page.goto();   // a fresh context has no service worker: this visit installs it
+  await page.eval(`navigator.serviceWorker.ready.then(() => true)`);
+  const missing = await page.eval(`(async () => {
+    const out = [];
+    for (const u of ['/', '/store.js']) if (!(await caches.match(u))) out.push(u);
+    return out.join(', ');
+  })()`);
+  check(missing === '', 'not cached after the first visit: ' + missing);
+});
+
+test('logged in on the first visit, then opened with no signal, the diary still draws', async (page) => {
+  await page.goto();   // first visit ever: the setup screen, and the service worker installs
+  await page.eval(`navigator.serviceWorker.ready.then(() => true)`);
+  // log in within this same page load, as the Enter button does — minus its POST
+  await page.eval(`(async () => {
+    state.code = 'loveu'; state.name = 'me';
+    localStorage.setItem('code', 'loveu'); localStorage.setItem('name', 'me');
+    await enterMain();
+    return true;
+  })()`);
+  check(await page.eval(`Store.allEntries().then((a) => a.length)`) > 0, 'the first visit left no copy');
+
+  await page.offline(true);   // the tab and its service worker both
+  await page.reload();
+  await page.sleep(600);
+  check(await page.eval(`typeof Store`) === 'object', 'store.js did not load with no signal');
+  checkDrawn(await onScreen(page), 'with no signal after the first visit');
+  await page.offline(false);
+});
+
 // ---- a store that refuses to open must not refuse the app ----
 test('a store that will not open costs the copy, not the app', async (page) => {
   await page.goto();   // establish the origin first so localStorage exists

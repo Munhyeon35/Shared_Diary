@@ -5,13 +5,14 @@
 // cached is the shell that draws it, and the photos, which never change once
 // written.
 
-const VERSION = 'diary-v1';
+const VERSION = 'diary-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const PHOTO_CACHE = `${VERSION}-photos`;
 const PHOTO_KEEP = 80;
 
 const SHELL = [
   '/',
+  '/store.js',
   '/manifest.webmanifest',
   '/icon.svg',
   '/apple-touch-icon.png',
