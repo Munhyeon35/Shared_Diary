@@ -627,6 +627,7 @@ const thumbSrc = (p) => (p.startsWith('data:') ? p : photoUrl(p));
 function logout() {
   localStorage.removeItem('code');
   state.code = '';
+  $('offlineTag').hidden = true;   // the marker belongs to the diary, not the setup screen
   $('main').classList.add('hidden');
   $('setup').classList.remove('hidden');
 }
@@ -1252,7 +1253,9 @@ async function refresh() {
   try {
     ({ entries } = await api('/api/entries'));
   } catch (e) {
-    setOnline(false);
+    // Only a request that never got an answer means no signal — fetch
+    // throws a TypeError for that. A 401 or a server error is an answer.
+    if (e instanceof TypeError) setOnline(false);
     throw e;
   }
   setOnline(true);
@@ -1290,8 +1293,10 @@ async function enterMain() {
   if (!inTime) local.then((n) => { if (n) renderSpread(true); });
   try { await refresh(); renderSpread(true); } catch {}
 }
-// The shell is cached so the diary opens without a signal; the diary itself
-// is always fetched fresh.
+// The service worker caches the shell and the photos so the page opens
+// without a signal. The entries are not in its cache: store.js keeps the copy
+// in IndexedDB, and each pull from the server, still the source of truth,
+// replaces it.
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
 }

@@ -277,6 +277,35 @@ test('offline: says so, and the copy is not wiped', async (page) => {
   check(await page.eval(`document.getElementById('offlineTag').hidden`), 'still marked offline after reconnecting');
 });
 
+// ---- "offline" means no signal, not any failed pull ----
+const shownState = (page) => page.eval(`({
+  setup: !$('setup').classList.contains('hidden'),
+  offline: !$('offlineTag').hidden,
+})`);
+
+test('a code the server refuses is not shown as offline', async (page) => {
+  await page.goto();
+  await page.eval(`localStorage.setItem('code','not-our-code');localStorage.setItem('name','me')`);
+  await page.reload();   // the pull is a GET, answered 401
+  const s = await shownState(page);
+  check(s.setup, 'a refused code did not go back to the setup screen');
+  check(!s.offline, 'the offline marker shows over the setup screen after a 401');
+});
+
+test('a code refused after a spell offline takes the offline marker down', async (page) => {
+  await asMe(page);
+  await page.offline(true);
+  await page.reload();
+  check((await shownState(page)).offline, 'no offline marker to begin with');
+  await page.offline(false);
+  // the code changed on the server while this phone was offline
+  await page.eval(`state.code = 'not-our-code'; refresh().catch(() => {}); true`);
+  await page.sleep(500);
+  const s = await shownState(page);
+  check(s.setup, 'a refused code did not go back to the setup screen');
+  check(!s.offline, 'the offline marker stayed up over the setup screen');
+});
+
 // ---- the first visit must leave everything needed to open with no signal ----
 test('the first visit caches the whole shell, store.js included', async (page) => {
   await page.goto();   // a fresh context has no service worker: this visit installs it

@@ -1,9 +1,10 @@
 // Our Diary — offline shell.
 //
-// The diary itself is never cached: two people write to it from opposite
-// sides of the world, so a stale page would be worse than no page. What is
-// cached is the shell that draws it, and the photos, which never change once
-// written.
+// This worker caches the shell that draws the diary, and the photos, which
+// never change once written. The entries are not in this cache: store.js
+// keeps a copy of them on the device, in IndexedDB, and the page draws from
+// that copy when there is no signal. The server is still the source of
+// truth — every pull goes to it, and replaces the copy.
 
 const VERSION = 'diary-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
@@ -53,7 +54,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // the diary always comes from the server
+  // entries always go to the server; the device's copy is store.js's, not this cache's
   if (url.pathname.startsWith('/api/')) return;
 
   // a photo, once written, is the same forever
