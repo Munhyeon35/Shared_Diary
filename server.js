@@ -9,7 +9,14 @@ const path = require('path');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
-const COUPLE_CODE = process.env.COUPLE_CODE || 'loveu';
+// The couple code is the only thing standing between the internet and the diary,
+// so there is no default: a built-in one would be public in this repository.
+const COUPLE_CODE = process.env.COUPLE_CODE;
+if (!COUPLE_CODE) {
+  console.error('COUPLE_CODE is not set — it is the only lock on the diary.');
+  console.error('Run:   COUPLE_CODE=yoursecretcode node server.js');
+  process.exit(1);
+}
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
 const PHOTO_DIR = path.join(DATA_DIR, 'photos');
@@ -312,5 +319,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Our Diary server running: http://localhost:${PORT} (couple code: ${COUPLE_CODE})`);
+  // the code itself stays out of the log — logs get pasted into chats and issues
+  console.log(`Our Diary server running: http://localhost:${PORT}`);
 });

@@ -16,6 +16,10 @@
 COUPLE_CODE=둘만아는코드 PORT=3000 node server.js
 ```
 
+`COUPLE_CODE`는 반드시 넣어야 합니다. 없으면 서버가 뜨지 않습니다 — 이 코드가 일기를
+지키는 유일한 자물쇠라서, 코드에 기본값을 두면 그 값이 저장소에 공개됩니다.
+공개된 곳에 올릴 때는 길고 무작위한 값으로 주세요(예: `head -c 12 /dev/urandom | base64`).
+
 데이터는 `./data/entries.json`(글)과 `./data/photos/`(사진 파일)에 저장됩니다.
 백업은 `data/` 디렉터리만 복사하면 끝.
 
@@ -34,6 +38,7 @@ COUPLE_CODE=loveu PORT=3000 node server.js &
 node test/run.js
 ```
 
+테스트는 커플 코드가 `loveu`라고 가정합니다(`test/run.js`에 적혀 있음).
 `CDP_URL`, `APP_URL` 환경변수로 주소를 바꿀 수 있습니다.
 
 ## 둘이 실제로 쓰려면 (배포)
